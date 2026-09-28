@@ -1,0 +1,100 @@
+input_files: []
+think:
+  default: false
+  instrument: false
+  scales: false
+seed: 42
+model: gemma-4-31B-it
+llama_cpp:
+  base_url: http://127.0.0.1:8181/v1
+  server:
+    hf_repo: ggml-org/gemma-4-31B-it-GGUF:Q4_K_M
+    model_path: null
+    mmproj_path: null
+    spec_draft_path: null
+    host: 127.0.0.1
+    port: 8181
+    ctx_size: 165536
+    batch_size: 2048
+    ubatch_size: 2048
+    image_min_tokens: 1120
+    image_max_tokens: 1120
+    spec_type: draft-simple
+    spec_draft_hf_repo: unsloth/gemma-4-E4B-it-GGUF:Q4_K_M
+    n_parallel: 1
+    cache_ram: 0
+verbose: true
+max_retries: 2
+timeout: 1500
+images:
+  dpi: 220
+  format: png
+data:
+  extractions: data/raw/apa-psyctests-extractions.parquet
+  meta: data/raw/apa-psyctests-meta.json
+  partials:
+  - data/raw/aligns-extractions-exploded.parquet
+  - data/raw/scale-hunt-extractions-exploded.parquet
+  - data/raw/semanticnet-extractions-exploded.parquet
+  assemble:
+    exploded: data/processed/apa-psyctests-extractions-exploded.parquet
+    combined: data/processed/synthometricon-corpus-combined.parquet
+    patched: data/processed/synthometricon-corpus-patched.parquet
+    postprocessed: data/processed/synthometricon-corpus-postprocessed.parquet
+    embedded: data/processed/synthometricon-corpus-embedded.parquet
+    pooled: data/processed/synthometricon-corpus-embedded-pooled.parquet
+  publish: data/published/synthometricon-corpus-published.parquet
+encode:
+  item_models:
+  - name: surveybot3000
+    path: magnolia-psychometrics/surveybot3000
+  scale_models:
+  - name: all-MiniLM-L6-v2
+    path: sentence-transformers/all-MiniLM-L6-v2
+  batch_size: 256
+patch:
+  crossref:
+    enabled: true
+    cache: data/cached/crossref-cache.json
+    mailto: null
+    title_threshold: 0.9
+    year_tolerance: 1
+    instrument_threshold: 0.85
+  doi_probe:
+    enabled: true
+    cache: data/cached/doi-cache.json
+    instrument_threshold: 0.6
+logs:
+  scratch_below_files: 10
+  scratch_keep: 50
+testing:
+  num_runs: 5
+  run_retries: 2
+  fixtures_dir: tests/validation-fixtures
+  reliability:
+    thresholds:
+      items:
+        count_agreement: 1.0
+        levenshtein_alpha: 0.9
+      scales:
+        count_agreement: 1.0
+        tree_overlap: 0.9
+      instrument:
+        assignment_alpha: 0.9
+        reverse_agreement: 0.9
+      meta:
+        language_agreement: 1.0
+        intake_form_agreement: 1.0
+        objective_measure_agreement: 1.0
+  validity:
+    thresholds:
+      string_similarity: 0.8
+options:
+  seed: null
+  temperature: 1.0
+  top_k: 64
+  top_p: 0.95
+  min_p: 0.0
+  num_predict: -1
+  repeat_penalty: 1.0
+  repeat_last_n: 64

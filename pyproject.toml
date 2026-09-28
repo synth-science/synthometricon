@@ -1,0 +1,55 @@
+[project]
+name = "synth-net-pipline"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Björn E. Hommel",email = "bjorn.hommel@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai (>=1.0.0,<2.0.0)",
+    "pydantic (>=2.13.2,<3.0.0)",
+    "pypdf (>=6.10.2,<7.0.0)",
+    "pymupdf (>=1.27.2.2,<2.0.0.0)",
+    "pandas (>=3.0.2,<4.0.0)",
+    "pyaml (>=26.2.1,<27.0.0)",
+    "tqdm (>=4.67.3,<5.0.0)",
+    "pyarrow (>=23.0.1,<24.0.0)",
+    "rapidfuzz (>=3.14.5,<4.0.0)",
+    "ipykernel (>=7.2.0,<8.0.0)",
+    "pingouin (>=0.5.5,<1.0)",
+    "krippendorff (>=0.6.0,<1.0)",
+    "sentence-transformers (==4.1.0)",
+    # <2.9: cu12x wheels for the CUDA 12.2 driver; >=2.6: torch.load CVE-2025-32434
+    "torch (>=2.6,<2.9)",
+    "datasets (>=5.0.1,<6.0.0)",
+    "pypdf2 (>=3.0.1,<4.0.0)",
+    "httpx (>=0.28,<1.0)",
+    "cryptography (>=50.0.1,<51.0.0)",
+    # explicit: publish depends on it directly
+    "huggingface-hub (>=0.36,<1.0)",
+    "itables (>=2.9.1,<3.0.0)",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.0"
+langdetect = "^1.0.9"
+
+
+[tool.poetry.group.analysis.dependencies]
+matplotlib = "^3.10"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
