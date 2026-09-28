@@ -314,7 +314,7 @@ class CrossrefClient:
 
     def __init__(self, mailto: str, throttle: float = 1.0):
         self.headers = {
-            "User-Agent": f"synth-net-pipline/0.1 (mailto:{mailto})"
+            "User-Agent": f"synthometricon-source/0.1 (mailto:{mailto})"
         }
         self.throttle = throttle
         self._last = 0.0

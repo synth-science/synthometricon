@@ -121,7 +121,7 @@ def build_manifest(df: pd.DataFrame, cfg: dict, artifact, key: bytes, *,
     return {
         "manifest_schema": MANIFEST_SCHEMA,
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "pipeline": {"repo": "synth-net-pipline", **git_provenance()},
+        "pipeline": {"repo": "synthometricon-source", **git_provenance()},
         "artifact": {
             "name": Path(artifact).name,
             "bytes": int(token_bytes),

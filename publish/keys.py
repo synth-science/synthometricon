@@ -15,7 +15,7 @@ from cryptography.fernet import Fernet
 
 from . import paths
 
-DEFAULT_KEY_ENV = "SYNTH_NET_RELEASE_KEY"
+DEFAULT_KEY_ENV = "SYNTHOMETRICON_RELEASE_KEY"
 
 
 def fingerprint(key: bytes) -> str:

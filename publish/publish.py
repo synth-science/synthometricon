@@ -242,7 +242,7 @@ def main() -> None:
                     help="Output file (default: data.publish).")
     ap.add_argument("--key-path", default=None,
                     help="Fernet key file (default: <output>.key). "
-                         "Overridden by $SYNTH_NET_RELEASE_KEY when set.")
+                         "Overridden by $SYNTHOMETRICON_RELEASE_KEY when set.")
     ap.add_argument("--report-only", action="store_true",
                     help="Report counts without encrypting or writing. Never "
                          "generates a key.")

@@ -95,7 +95,7 @@ poetry run python -m publish --report-only               # dry run: no writes, N
 poetry run python -m publish --report-only --check-remote  # dry run + live repo state (visibility, already-current?)
 poetry run python -m publish --force                     # upload despite a matching remote or a dirty build tree
 poetry run python -m publish --skip-verify               # skip re-hashing the artifact against its manifest
-poetry run python -m publish --key-path my.key           # override <data.publish stem>.key ($SYNTH_NET_RELEASE_KEY still wins)
+poetry run python -m publish --key-path my.key           # override <data.publish stem>.key ($SYNTHOMETRICON_RELEASE_KEY still wins)
 poetry run python -m publish --no-logs                   # skip writing logs/publish-<timestamp>.log
 ```
 

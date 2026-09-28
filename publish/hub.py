@@ -239,7 +239,7 @@ def run(cfg: dict, *, report_only: bool = False, yes: bool = False,
     from huggingface_hub.errors import HfHubHTTPError
 
     token = resolve_token(cfg)
-    api = api or HfApi(token=token, library_name="synth-net-pipline",
+    api = api or HfApi(token=token, library_name="synthometricon-source",
                        library_version=str(git.get("commit", "unknown")))
     try:
         parent = verify_repo(api, repo_id,

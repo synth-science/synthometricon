@@ -1,5 +1,5 @@
 ---
-pretty_name: Synth-Net Corpus — pooled psychometric embeddings (encrypted)
+pretty_name: Synthometricon Corpus — pooled psychometric embeddings (encrypted)
 language:
   - en
   - es
@@ -47,7 +47,7 @@ viewer: false
 <!-- TODO before the first externally-shared release: add a `license:` (and
      `license_name:`/`license_link:` if custom) to the front matter above. -->
 
-# Synth-Net Corpus — pooled psychometric embeddings
+# Synthometricon Corpus — pooled psychometric embeddings
 
 A corpus of **psychological measurement instruments** — questionnaires, scales and
 their subscales — extracted from test documentation and aggregated into vector
@@ -80,7 +80,7 @@ tell "wrong key" apart from "corrupted download":
 
 ```python
 import hashlib
-hashlib.sha256(open("synth-net-release.key", "rb").read().strip()).hexdigest()[:12]
+hashlib.sha256(open("synthometricon-release.key", "rb").read().strip()).hexdigest()[:12]
 ```
 
 ## How to read the data
@@ -97,11 +97,11 @@ import pandas as pd
 from cryptography.fernet import Fernet
 from huggingface_hub import hf_hub_download
 
-key = open("synth-net-release.key", "rb").read().strip()
+key = open("synthometricon-release.key", "rb").read().strip()
 
 blob = hf_hub_download(
-    "magnolia-psychometrics/synth-net-corpus",
-    "data/synth-net-corpus-release.enc.bin",
+    "magnolia-psychometrics/synthometricon-corpus",
+    "data/synthometricon-corpus-release.enc.bin",
     repo_type="dataset",
 )
 raw = Fernet(key).decrypt(open(blob, "rb").read())

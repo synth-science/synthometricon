@@ -61,7 +61,7 @@ def main() -> None:
         "--key-path", default=None,
         help="Fernet key file (default: data.publish with a .key "
              "suffix). Overridden by "
-             "$SYNTH_NET_RELEASE_KEY when that is set.",
+             "$SYNTHOMETRICON_RELEASE_KEY when that is set.",
     )
     ap.add_argument(
         "--no-logs", action="store_true",

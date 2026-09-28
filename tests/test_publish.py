@@ -351,7 +351,7 @@ def test_card_documents_every_released_column():
 def test_card_leaks_nothing_local():
     text = hub.CARD_FILE.read_text(encoding="utf-8")
     assert "/home/research" not in text and "/home/models" not in text
-    assert ".key\"" not in text or "synth-net-release.key" in text
+    assert ".key\"" not in text or "synthometricon-release.key" in text
 
 
 # --- publish.hub — refusals, against a stub ---

@@ -49,7 +49,7 @@ df = pd.read_parquet(io.BytesIO(raw))
 The only module that touches the key. One stable **random** key (`Fernet.generate_key`) encrypts every release; it cannot be re-derived, so losing it locks out every consumer and rotating it silently breaks them.
 
 Resolution (`resolve_key`):
-1. `$publish.key_env` (default `SYNTH_NET_RELEASE_KEY`);
+1. `$publish.key_env` (default `SYNTHOMETRICON_RELEASE_KEY`);
 2. the key file: `--key-path`, else `<stem>.key` (outside the repo; `*.key` gitignored as backstop). If both env and file exist and differ, abort showing both fingerprints rather than guess;
 3. generate (`O_EXCL`, mode 0600) **only when `allow_create`** — true only for a real `--step publish`. Dry runs (`describe_key`), `hub.run` and `read_release` pass False, so they can never mint a second key.
 

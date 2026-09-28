@@ -47,4 +47,4 @@ The reliability and validity suites need a running llama-server and your own PDF
 
 ## License
 
-[MIT](LICENSE)
+The code in this repository is licensed under [MIT](LICENSE). The license covers only this repository; it does not apply to the Synthometricon web application hosted on Hugging Face Spaces.

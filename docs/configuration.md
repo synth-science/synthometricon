@@ -88,14 +88,13 @@ See [architecture-publish.md](architecture-publish.md).
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `key_env` | `SYNTH_NET_RELEASE_KEY` | Env var holding the Fernet key, checked before `<data.publish stem>.key`. The only `os.environ` read in Python — not a pattern to copy. |
-| `repo_id` | — | HuggingFace dataset repo. |
+| `key_env` | `SYNTHOMETRICON_RELEASE_KEY` | Env var holding the Fernet key, checked before `<data.publish stem>.key`. The only `os.environ` read in Python — not a pattern to copy. |
+| `repo_id` | — | HuggingFace dataset repo. Nulled in the public config (with `path_in_repo`). |
 | `path_in_repo` | — | Blob path in the repo; end it in `.bin`. |
 | `revision` / `tag` | `main` / `null` | Branch and optional release tag. |
 | `private` | `true` | Required visibility, verified before every upload. |
 | `create_repo` | `true` | Whether upload may create the repo. |
 | `token_env` | `HF_TOKEN` | Env var with the HF write token (falls back to cached login). Never put a token in config. |
-| `contact` | — | Where the dataset card tells readers to request the key. |
 
 ## `logs`
 
