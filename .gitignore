@@ -255,3 +255,8 @@ logs/slurm/*
 
 # Supplemental analyses: bulky per-case outputs
 analyses/output/*.parquet
+
+# search_validity.Rmd: rendered report, knitr cache, downloaded inputs
+analyses/*.html
+analyses/output/search_validity/cache/
+analyses/output/search_validity/data/
