@@ -1,0 +1,227 @@
+[
+ {
+  "doi": "10.1037/t01554-000",
+  "name": "brief psychiatric rating scale",
+  "acronym": "BPRS",
+  "alt_names": "",
+  "slug": "brief-psychiatric-rating-scale",
+  "websites": "",
+  "usage_count": 7504
+ },
+ {
+  "doi": "10.1037/t04111-000",
+  "name": "montgomery-asberg depression rating scale",
+  "acronym": "MADRS",
+  "alt_names": "Montgomery and Ashberg Depression Rating Scale",
+  "slug": "montgomery-asberg-depression-rating-scale",
+  "websites": "",
+  "usage_count": 7238
+ },
+ {
+  "doi": "10.1037/t05178-000",
+  "name": "pittsburgh sleep quality index",
+  "acronym": "PSQI",
+  "alt_names": "",
+  "slug": "pittsburgh-sleep-quality-index",
+  "websites": "http://www.sleep.pitt.edu/research/instruments.html",
+  "usage_count": 6408
+ },
+ {
+  "doi": "10.1037/t02121-000",
+  "name": "composite international diagnostic interview",
+  "acronym": "WHO WMH-CIDI",
+  "alt_names": "World Mental Health Composite International Diagnostic Interview | CIDI 3.0 | Composite International Diagnostic Interview: Computer Assisted Personal Interview (CAPI V21.1.4)",
+  "slug": "composite-international-diagnostic-interview",
+  "websites": "https://www.hcp.med.harvard.edu/wmhcidi/download-the-who-wmh-cidi-instruments/",
+  "usage_count": 4888
+ },
+ {
+  "doi": "10.1037/t57982-000",
+  "name": "yale-brown obsessive compulsive scale",
+  "acronym": "YBOCS",
+  "alt_names": "",
+  "slug": "yale-brown-obsessive-compulsive-scale",
+  "websites": "",
+  "usage_count": 4410
+ },
+ {
+  "doi": "10.1037/t18128-000",
+  "name": "autism diagnostic interview-revised",
+  "acronym": "ADI-R",
+  "alt_names": "",
+  "slug": "autism-diagnostic-interview-revised",
+  "websites": "https://www.wpspublish.com/adi-r-autism-diagnostic-interviewrevised",
+  "usage_count": 4096
+ },
+ {
+  "doi": "10.1037/t07081-000",
+  "name": "epworth sleepiness scale",
+  "acronym": "ESS",
+  "alt_names": "",
+  "slug": "epworth-sleepiness-scale",
+  "websites": "http://epworthsleepinessscale.com/",
+  "usage_count": 4041
+ },
+ {
+  "doi": "10.1037/t02080-000",
+  "name": "childhood trauma questionnaire",
+  "acronym": "CTQ",
+  "alt_names": "",
+  "slug": "childhood-trauma-questionnaire",
+  "websites": "",
+  "usage_count": 3500
+ },
+ {
+  "doi": "10.1037/t00025-000",
+  "name": "addiction severity index",
+  "acronym": "ASI",
+  "alt_names": "",
+  "slug": "addiction-severity-index",
+  "websites": "",
+  "usage_count": 3134
+ },
+ {
+  "doi": "10.1037/t07023-000",
+  "name": "36-item short form health survey",
+  "acronym": "SF-36",
+  "alt_names": "",
+  "slug": "36-item-short-form-health-survey",
+  "websites": "http://www.rand.org/index.html",
+  "usage_count": 3067
+ },
+ {
+  "doi": "10.1037/t02366-000",
+  "name": "barthel index",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "barthel-index",
+  "websites": "",
+  "usage_count": 2584
+ },
+ {
+  "doi": "10.1037/t48377-000",
+  "name": "scale for the assessment of positive symptoms",
+  "acronym": "SAPS",
+  "alt_names": "L'echelle d'evaluation des symptômes positifs",
+  "slug": "scale-for-the-assessment-of-positive-symptoms",
+  "websites": "",
+  "usage_count": 2352
+ },
+ {
+  "doi": "10.1037/t07021-000",
+  "name": "12-item short form health survey",
+  "acronym": "SF-12",
+  "alt_names": "",
+  "slug": "12-item-short-form-health-survey",
+  "websites": "http://www.rand.org/index.html",
+  "usage_count": 2304
+ },
+ {
+  "doi": "10.1037/t01093-000",
+  "name": "interpersonal reactivity index",
+  "acronym": "IRI",
+  "alt_names": "Interpersonal Reactivity Questionnaire",
+  "slug": "interpersonal-reactivity-index",
+  "websites": "",
+  "usage_count": 2200
+ },
+ {
+  "doi": "10.1037/t01760-000",
+  "name": "penn state worry questionnaire",
+  "acronym": "PSWQ",
+  "alt_names": "",
+  "slug": "penn-state-worry-questionnaire",
+  "websites": "",
+  "usage_count": 2149
+ },
+ {
+  "doi": "10.1037/t03974-000",
+  "name": "eating disorder examination questionnaire",
+  "acronym": "EDE-Q",
+  "alt_names": "",
+  "slug": "eating-disorder-examination-questionnaire",
+  "websites": "",
+  "usage_count": 2132
+ },
+ {
+  "doi": "10.1037/t27207-000",
+  "name": "wechsler memory scale",
+  "acronym": "WMS",
+  "alt_names": "",
+  "slug": "wechsler-memory-scale",
+  "websites": "",
+  "usage_count": 2130
+ },
+ {
+  "doi": "10.1037/t15120-000",
+  "name": "minnesota multiphasic personality inventory-2",
+  "acronym": "MMPI-2",
+  "alt_names": "",
+  "slug": "minnesota-multiphasic-personality-inventory-2",
+  "websites": "http://pearsonassessments.com/HAIWEB/Cultures/en-us/Productdetail.htm?Pid=MMPI-2&Mode=summary",
+  "usage_count": 2121
+ },
+ {
+  "doi": "10.1037/t31330-000",
+  "name": "international physical activity questionnaire",
+  "acronym": "IPAQ",
+  "alt_names": "International Physical Activity Questionnaire--Long\n                Version | International Physical Activity Questionnaire--Short\n                Version | Long IPAQ | Short IPAQ",
+  "slug": "international-physical-activity-questionnaire",
+  "websites": "https://sites.google.com/site/theipaq/",
+  "usage_count": 2074
+ },
+ {
+  "doi": "10.1037/t02175-000",
+  "name": "dyadic adjustment scale",
+  "acronym": "DAS",
+  "alt_names": "",
+  "slug": "dyadic-adjustment-scale",
+  "websites": "http://www.mhs.com/product.aspx?gr=cli&prod=das&id=overview",
+  "usage_count": 2065
+ },
+ {
+  "doi": "10.1037/t02125-000",
+  "name": "conflict tactics scales",
+  "acronym": "CTS",
+  "alt_names": "Conflict Tactics Scale--Form A | Conflict Tactics Scale--Form N",
+  "slug": "conflict-tactics-scales",
+  "websites": "",
+  "usage_count": 1937
+ },
+ {
+  "doi": "10.1037/t01029-000",
+  "name": "difficulties in emotion regulation scale",
+  "acronym": "DERS",
+  "alt_names": "",
+  "slug": "difficulties-in-emotion-regulation-scale",
+  "websites": "",
+  "usage_count": 1932
+ },
+ {
+  "doi": "10.1037/t35126-000",
+  "name": "national institutes of health stroke scale",
+  "acronym": "NIHSS",
+  "alt_names": "NIH Stroke Scale",
+  "slug": "national-institutes-of-health-stroke-scale",
+  "websites": "https://www.sralab.org/rehabilitation-measures/national-institutes-health-stroke-scale",
+  "usage_count": 1868
+ },
+ {
+  "doi": "10.1037/t00303-000",
+  "name": "impact of event scale",
+  "acronym": "IES",
+  "alt_names": "Impact of Events Scale",
+  "slug": "impact-of-event-scale",
+  "websites": "",
+  "usage_count": 1748
+ },
+ {
+  "doi": "10.1037/t06803-000",
+  "name": "instrumental activities of daily living scale",
+  "acronym": "IADL",
+  "alt_names": "Lawton Instrumental Activities of Daily Living Scale",
+  "slug": "instrumental-activities-of-daily-living-scale",
+  "websites": "",
+  "usage_count": 1688
+ }
+]

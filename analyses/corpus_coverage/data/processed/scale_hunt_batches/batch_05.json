@@ -1,0 +1,227 @@
+[
+ {
+  "doi": "10.1037/t06213-000",
+  "name": "social provisions scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "social-provisions-scale",
+  "websites": "",
+  "usage_count": 570
+ },
+ {
+  "doi": "10.1037/t06842-000",
+  "name": "quality of life questionnaire",
+  "acronym": "QOL",
+  "alt_names": "",
+  "slug": "quality-of-life-questionnaire",
+  "websites": "https://www.psychpress.com.au/allied-health-solutions/product-detail.php?productID=QLQ-A-01K",
+  "usage_count": 569
+ },
+ {
+  "doi": "10.1037/t10027-000",
+  "name": "cope inventory",
+  "acronym": null,
+  "alt_names": "COPE Inventory--Dispositional Version | COPE Inventory--Situational Version",
+  "slug": "cope-inventory",
+  "websites": "http://local.psy.miami.edu/faculty/ccarver/sclCOPEF.html",
+  "usage_count": 562
+ },
+ {
+  "doi": "10.1037/t06708-000",
+  "name": "mos 36-item short-form health survey",
+  "acronym": "SF-36",
+  "alt_names": "",
+  "slug": "mos-36-item-short-form-health-survey",
+  "websites": "",
+  "usage_count": 556
+ },
+ {
+  "doi": "10.1037/t38021-000",
+  "name": "brief assessment of cognition in schizophrenia",
+  "acronym": "BACS",
+  "alt_names": "",
+  "slug": "brief-assessment-of-cognition-in-schizophrenia",
+  "websites": "",
+  "usage_count": 550
+ },
+ {
+  "doi": "10.1037/t03926-000",
+  "name": "semi-structured assessment for the genetics of alcoholism",
+  "acronym": "SSAGA-II",
+  "alt_names": "",
+  "slug": "semi-structured-assessment-for-the-genetics-of-alc",
+  "websites": "",
+  "usage_count": 546
+ },
+ {
+  "doi": "10.1037/t58031-000",
+  "name": "alabama parenting questionnaire",
+  "acronym": "APQ",
+  "alt_names": "Alabama Parenting Questionnaire--Parent Form | Alabama Parenting Questionnaire--Child Form",
+  "slug": "alabama-parenting-questionnaire",
+  "websites": "http://fs.uno.edu/pfrick/APQ.html",
+  "usage_count": 545
+ },
+ {
+  "doi": "10.1037/t05638-000",
+  "name": "adhd rating scale-iv",
+  "acronym": "ADHD-RS-IV:Home Version",
+  "alt_names": "",
+  "slug": "adhd-rating-scale-iv",
+  "websites": "http://www.guilford.com/books/ADHD-Rating-Scale-5-for-Children-and-Adolescents/DuPaul-Power-Anastopoulos-Reid/9781462524877",
+  "usage_count": 544
+ },
+ {
+  "doi": "10.1037/t01309-000",
+  "name": "parenting scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "parenting-scale",
+  "websites": "",
+  "usage_count": 540
+ },
+ {
+  "doi": "10.1037/t08303-000",
+  "name": "binge eating scale",
+  "acronym": "BES",
+  "alt_names": "",
+  "slug": "binge-eating-scale",
+  "websites": "",
+  "usage_count": 539
+ },
+ {
+  "doi": "10.1037/t05461-000",
+  "name": "eysenck personality questionnaire-revised",
+  "acronym": "EPQ-R",
+  "alt_names": "",
+  "slug": "eysenck-personality-questionnaire-revised",
+  "websites": "http://www.edits.net",
+  "usage_count": 538
+ },
+ {
+  "doi": "10.1037/t15197-000",
+  "name": "short mood and feelings questionnaire",
+  "acronym": "SMFQ",
+  "alt_names": "",
+  "slug": "short-mood-and-feelings-questionnaire",
+  "websites": "",
+  "usage_count": 529
+ },
+ {
+  "doi": "10.1037/t06497-000",
+  "name": "state-trait anxiety inventory for children",
+  "acronym": "STAI-CH",
+  "alt_names": "",
+  "slug": "state-trait-anxiety-inventory-for-children",
+  "websites": "http://www.mindgarden.com/",
+  "usage_count": 520
+ },
+ {
+  "doi": "10.1037/t00791-000",
+  "name": "cognitive failures questionnaire",
+  "acronym": "CFQ",
+  "alt_names": "",
+  "slug": "cognitive-failures-questionnaire",
+  "websites": "",
+  "usage_count": 519
+ },
+ {
+  "doi": "10.1037/t13498-000",
+  "name": "distress tolerance scale",
+  "acronym": "DTS",
+  "alt_names": "",
+  "slug": "distress-tolerance-scale",
+  "websites": "",
+  "usage_count": 512
+ },
+ {
+  "doi": "10.1037/t51423-000",
+  "name": "brief resilience scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "brief-resilience-scale",
+  "websites": "",
+  "usage_count": 504
+ },
+ {
+  "doi": "10.1037/t05183-000",
+  "name": "subjective units of distress scale",
+  "acronym": "SUDS",
+  "alt_names": "Subjective Units of Disturbance Scale",
+  "slug": "subjective-units-of-distress-scale",
+  "websites": "http://www.oxfordclinicalpsych.com/view/10.1093/med:psych/9780199334513.001.0001/med-9780199334513-appendix-13 | http://www.inneractions.com.au/downloads/useful_tools/SUDS_Scale-Intensity_of_Feelings_Measure.pdf",
+  "usage_count": 500
+ },
+ {
+  "doi": "10.1037/t06631-000",
+  "name": "trauma symptom checklist for children",
+  "acronym": "TSCC",
+  "alt_names": "",
+  "slug": "trauma-symptom-checklist-for-children",
+  "websites": "",
+  "usage_count": 500
+ },
+ {
+  "doi": "10.1037/t38751-000",
+  "name": "personal and social performance scale",
+  "acronym": "PSP",
+  "alt_names": "",
+  "slug": "personal-and-social-performance-scale",
+  "websites": "",
+  "usage_count": 500
+ },
+ {
+  "doi": "10.1037/t71986-000",
+  "name": "canadian occupational performance measure",
+  "acronym": "COPM",
+  "alt_names": "",
+  "slug": "canadian-occupational-performance-measure",
+  "websites": "",
+  "usage_count": 499
+ },
+ {
+  "doi": "10.1037/t15121-000",
+  "name": "minnesota multiphasic personality inventory-2-restructured form",
+  "acronym": "MMPI-2-RF",
+  "alt_names": "",
+  "slug": "minnesota-multiphasic-personality-inventory-2-rest",
+  "websites": "http://pearsonassessments.com/HAIWEB/Cultures/en-us/Productdetail.htm?Pid=PAg523&Mode=summary",
+  "usage_count": 495
+ },
+ {
+  "doi": "10.1037/t63848-000",
+  "name": "eq-5d-5l",
+  "acronym": null,
+  "alt_names": "EQ-5D--5-Level Version",
+  "slug": "eq-5d-5l",
+  "websites": "",
+  "usage_count": 486
+ },
+ {
+  "doi": "10.1037/t33022-000",
+  "name": "children's sleep habits questionnaire",
+  "acronym": "CSHQ",
+  "alt_names": "",
+  "slug": "children-s-sleep-habits-questionnaire",
+  "websites": "",
+  "usage_count": 470
+ },
+ {
+  "doi": "10.1037/t09699-000",
+  "name": "symptom checklist",
+  "acronym": "KSC",
+  "alt_names": "Kohn Symptom Checklist",
+  "slug": "symptom-checklist",
+  "websites": "",
+  "usage_count": 466
+ },
+ {
+  "doi": "10.1037/t14978-000",
+  "name": "bayley scales of infant and toddler development, third edition",
+  "acronym": "Bayley--III®",
+  "alt_names": "",
+  "slug": "bayley-scales-of-infant-and-toddler-development-th",
+  "websites": "http://www.pearsonassessments.com/HAIWEB/Cultures/en-us/Productdetail.htm?Pid=015-8027-256&Mode=summary",
+  "usage_count": 466
+ }
+]

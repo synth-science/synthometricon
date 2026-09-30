@@ -1,0 +1,227 @@
+[
+ {
+  "doi": "10.1037/t06463-000",
+  "name": "emotion regulation questionnaire",
+  "acronym": "ERQ",
+  "alt_names": "",
+  "slug": "emotion-regulation-questionnaire",
+  "websites": "https://spl.stanford.edu/resources",
+  "usage_count": 1569
+ },
+ {
+  "doi": "10.1037/t10642-000",
+  "name": "toronto alexithymia scale",
+  "acronym": "TAS",
+  "alt_names": "Toronto Alexithymia Scale-26",
+  "slug": "toronto-alexithymia-scale",
+  "websites": "",
+  "usage_count": 1562
+ },
+ {
+  "doi": "10.1037/t05974-000",
+  "name": "ucla loneliness scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "ucla-loneliness-scale",
+  "websites": "",
+  "usage_count": 1519
+ },
+ {
+  "doi": "10.1037/t03902-000",
+  "name": "temperament and character inventory",
+  "acronym": "TCI",
+  "alt_names": "",
+  "slug": "temperament-and-character-inventory",
+  "websites": "",
+  "usage_count": 1470
+ },
+ {
+  "doi": "10.1037/t03988-000",
+  "name": "schedule for affective disorders and schizophrenia for school-age children-present and lifetime version",
+  "acronym": "K-SADS-PL",
+  "alt_names": "",
+  "slug": "schedule-for-affective-disorders-and-schizophrenia",
+  "websites": "",
+  "usage_count": 1429
+ },
+ {
+  "doi": "10.1037/t02622-000",
+  "name": "ptsd checklist-civilian version",
+  "acronym": "PCL-C",
+  "alt_names": "",
+  "slug": "ptsd-checklist-civilian-version",
+  "websites": "http://www.ptsd.va.gov/professional/pages/assessments/ptsd-checklist.asp",
+  "usage_count": 1402
+ },
+ {
+  "doi": "10.1037/t02711-000",
+  "name": "eysenck personality inventory",
+  "acronym": "EPQ",
+  "alt_names": "Eysenck Personality Questionnaire",
+  "slug": "eysenck-personality-inventory",
+  "websites": "",
+  "usage_count": 1399
+ },
+ {
+  "doi": "10.1037/t17260-000",
+  "name": "social responsiveness scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "social-responsiveness-scale",
+  "websites": "http://www.wpspublish.com/store/p/2993/social-responsiveness-scale-srs-by-john-n-constantino-md",
+  "usage_count": 1395
+ },
+ {
+  "doi": "10.1037/t07564-000",
+  "name": "neo personality inventory",
+  "acronym": "NEO-PI",
+  "alt_names": "",
+  "slug": "neo-personality-inventory",
+  "websites": "",
+  "usage_count": 1380
+ },
+ {
+  "doi": "10.1037/t07472-000",
+  "name": "dissociative experiences scale",
+  "acronym": "DES",
+  "alt_names": "",
+  "slug": "dissociative-experiences-scale",
+  "websites": "",
+  "usage_count": 1300
+ },
+ {
+  "doi": "10.1037/t03903-000",
+  "name": "personality assessment inventory",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "personality-assessment-inventory",
+  "websites": "",
+  "usage_count": 1296
+ },
+ {
+  "doi": "10.1037/t04131-000",
+  "name": "alzheimer's disease assessment scale",
+  "acronym": "ADAS",
+  "alt_names": "",
+  "slug": "alzheimer-s-disease-assessment-scale",
+  "websites": "",
+  "usage_count": 1255
+ },
+ {
+  "doi": "10.1037/t48466-000",
+  "name": "global deterioration scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "global-deterioration-scale",
+  "websites": "",
+  "usage_count": 1253
+ },
+ {
+  "doi": "10.1037/t02879-000",
+  "name": "adult attachment interview",
+  "acronym": "AAI",
+  "alt_names": "",
+  "slug": "adult-attachment-interview",
+  "websites": "",
+  "usage_count": 1247
+ },
+ {
+  "doi": "10.1037/t05050-000",
+  "name": "multidimensional anxiety scale for children",
+  "acronym": "MASC™",
+  "alt_names": "",
+  "slug": "multidimensional-anxiety-scale-for-children",
+  "websites": "http://www.mhs.com/masc",
+  "usage_count": 1224
+ },
+ {
+  "doi": "10.1037/t03776-000",
+  "name": "posttraumatic growth inventory",
+  "acronym": "PTGI",
+  "alt_names": "",
+  "slug": "posttraumatic-growth-inventory",
+  "websites": "",
+  "usage_count": 1184
+ },
+ {
+  "doi": "10.1037/t01522-000",
+  "name": "cage questionnaire",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "cage-questionnaire",
+  "websites": "",
+  "usage_count": 1173
+ },
+ {
+  "doi": "10.1037/t02445-000",
+  "name": "parenting stress index",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "parenting-stress-index",
+  "websites": "https://www.parinc.com/products/pkey/333",
+  "usage_count": 1172
+ },
+ {
+  "doi": "10.1037/t52667-000",
+  "name": "columbia-suicide severity rating scale",
+  "acronym": "C-SSRS",
+  "alt_names": "Columbia-Suicide Severity Rating Scale--Screen Version",
+  "slug": "columbia-suicide-severity-rating-scale",
+  "websites": "http://www.cssrs.columbia.edu/",
+  "usage_count": 1135
+ },
+ {
+  "doi": "10.1037/t49277-000",
+  "name": "wide range achievement test",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "wide-range-achievement-test",
+  "websites": "http://www.pearsonclinical.com",
+  "usage_count": 1071
+ },
+ {
+  "doi": "10.1037/t49458-000",
+  "name": "childhood autism rating scale",
+  "acronym": "CARS",
+  "alt_names": "Childhood Psychosis Rating Scale",
+  "slug": "childhood-autism-rating-scale",
+  "websites": "",
+  "usage_count": 1043
+ },
+ {
+  "doi": "10.1037/t07870-000",
+  "name": "schedule for affective disorders and schizophrenia",
+  "acronym": "SADS",
+  "alt_names": "Schedule for Affective Disorders and Schizophrenia--Lifetime version | Schedule for Affective Disorders and Schizophrenia--Change version",
+  "slug": "schedule-for-affective-disorders-and-schizophrenia",
+  "websites": "",
+  "usage_count": 988
+ },
+ {
+  "doi": "10.1037/t03938-000",
+  "name": "south oaks gambling screen",
+  "acronym": "SOGS",
+  "alt_names": "",
+  "slug": "south-oaks-gambling-screen",
+  "websites": "",
+  "usage_count": 959
+ },
+ {
+  "doi": "10.1037/t78752-000",
+  "name": "diagnostic interview schedule for children",
+  "acronym": "DISC",
+  "alt_names": "",
+  "slug": "diagnostic-interview-schedule-for-children",
+  "websites": "",
+  "usage_count": 950
+ },
+ {
+  "doi": "10.1037/t06346-000",
+  "name": "connor-davidson resilience scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "connor-davidson-resilience-scale",
+  "websites": "",
+  "usage_count": 935
+ }
+]

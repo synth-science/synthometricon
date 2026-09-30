@@ -1,0 +1,92 @@
+[
+ {
+  "doi": "10.1037/t02125-000",
+  "name": "conflict tactics scales",
+  "acronym": "CTS",
+  "alt_names": "Conflict Tactics Scale--Form A | Conflict Tactics Scale--Form N",
+  "slug": "conflict-tactics-scales",
+  "websites": null,
+  "usage_count": 1937
+ },
+ {
+  "doi": "10.1037/t07870-000",
+  "name": "schedule for affective disorders and schizophrenia",
+  "acronym": "SADS",
+  "alt_names": "Schedule for Affective Disorders and Schizophrenia--Lifetime version | Schedule for Affective Disorders and Schizophrenia--Change version",
+  "slug": "schedule-for-affective-disorders-and-schizophrenia",
+  "websites": null,
+  "usage_count": 988
+ },
+ {
+  "doi": "10.1037/t73087-000",
+  "name": "behavior rating inventory of executive function",
+  "acronym": "BRIEF",
+  "alt_names": "Behavior Rating Inventory of Executive Function®",
+  "slug": "behavior-rating-inventory-of-executive-function",
+  "websites": "https://www.parinc.com/Products/Pkey/23",
+  "usage_count": 886
+ },
+ {
+  "doi": "10.1037/t02278-000",
+  "name": "inventory of interpersonal problems",
+  "acronym": null,
+  "alt_names": null,
+  "slug": "inventory-of-interpersonal-problems",
+  "websites": null,
+  "usage_count": 724
+ },
+ {
+  "doi": "10.1037/t55271-000",
+  "name": "resilience scale",
+  "acronym": null,
+  "alt_names": null,
+  "slug": "resilience-scale",
+  "websites": null,
+  "usage_count": 604
+ },
+ {
+  "doi": "10.1037/t41553-000",
+  "name": "hamilton depression inventory",
+  "acronym": "HDI",
+  "alt_names": "Hamilton Depression Inventory--17-Item Form | Hamilton Depression Inventory--9-Item Short Form",
+  "slug": "hamilton-depression-inventory",
+  "websites": null,
+  "usage_count": 577
+ },
+ {
+  "doi": "10.1037/t01309-000",
+  "name": "parenting scale",
+  "acronym": null,
+  "alt_names": null,
+  "slug": "parenting-scale",
+  "websites": null,
+  "usage_count": 540
+ },
+ {
+  "doi": "10.1037/t06497-000",
+  "name": "state-trait anxiety inventory for children",
+  "acronym": "STAI-CH",
+  "alt_names": null,
+  "slug": "state-trait-anxiety-inventory-for-children",
+  "websites": "http://www.mindgarden.com/",
+  "usage_count": 520
+ },
+ {
+  "doi": "10.1037/t05183-000",
+  "name": "subjective units of distress scale",
+  "acronym": "SUDS",
+  "alt_names": "Subjective Units of Disturbance Scale",
+  "slug": "subjective-units-of-distress-scale",
+  "websites": "http://www.oxfordclinicalpsych.com/view/10.1093/med:psych/9780199334513.001.0001/med-9780199334513-appendix-13 | http://www.inneractions.com.au/downloads/useful_tools/SUDS_Scale-Intensity_of_Feelings_Measure.pdf",
+  "usage_count": 500
+ },
+ {
+  "doi": "10.1037/t09699-000",
+  "name": "symptom checklist",
+  "acronym": "KSC",
+  "alt_names": "Kohn Symptom Checklist",
+  "slug": "symptom-checklist",
+  "websites": null,
+  "usage_count": 466
+ }
+]

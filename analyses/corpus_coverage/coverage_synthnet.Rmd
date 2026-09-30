@@ -1,0 +1,214 @@
+---
+title: "SynthNet coverage"
+author: "Ruben Arslan"
+date: "2023-11-07"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+
+
+
+```{css, echo=FALSE}
+.js-plotly-plot .plotly svg a { 
+  fill: inherit !important 
+}
+```
+
+```{js, echo=FALSE}
+document.addEventListener("DOMContentLoaded", function() {
+    const plotElements = document.querySelectorAll('.plotly.html-widget'); // Gets all Plotly widgets
+    const firstPlot = plotElements[0]; // Gets the first Plotly plot
+
+    Plotly.update(firstPlot).then(gd => {
+        gd.on('plotly_treemapclick', () => false); // Example: removing treemap click event
+    });
+});
+```
+
+
+```{r warning=F,message=F}
+knitr::opts_chunk$set(echo = TRUE, error = T, warning = F, message = F)
+
+# Libraries and Settings
+
+# Libs ---------------------------
+library(reticulate)
+library(tidyverse)
+library(plotly)
+source("paths.R")
+# reticulate::py_install(
+#   packages = c("numpy", "plotly", "kaleido==0.2.1"), 
+#   envname = "r-reticulate-test",
+#   pip = TRUE
+# )
+# reticulate::conda_install('r-reticulate-test', 'plotly', channel = 'plotly')
+try(reticulate::use_miniconda(RETICULATE_ENV))
+# plotly 4.11 save_image() checks py_available() but never initializes python itself
+try(invisible(reticulate::py_available(initialize = TRUE)))
+
+# Coverage = tests for which SynthNet has scale-structured item data,
+# i.e. at least one extracted item assigned to a scale (bucket == "scaled").
+# Items in buckets "orphan" (extracted but not claimed by any scale) and
+# "unscaled" (explicitly scale-free, e.g. demographics) do not count.
+# PsycTests DOI is derived from the PDF filename (accession number 9999NNNNN -> 10.1037/tNNNNN-000).
+synthnet_dois <- arrow::open_dataset("data/raw-extractions-exploded.parquet") %>%
+  filter(bucket == "scaled") %>%
+  distinct(path) %>%
+  collect() %>%
+  mutate(DOI = str_c("10.1037/t", str_sub(str_extract(basename(path), "^[0-9]+"), 5, 9), "-000")) %>%
+  distinct(DOI)
+psyctests <- readRDS(PSYC_RECORDS)
+psyctests_info <- readRDS(PSYC_INFO)
+psyctests_usage_by_test <- psyctests_info %>% group_by(DOI, Name) %>% summarise(usage_count = sum(usage_count, na.rm = T)) %>% ungroup()
+```
+
+## Coverage in terms of number of tests in APA PsycTests
+```{r}
+psyctests <- psyctests %>% mutate(present_in_synthnet = DOI %in% synthnet_dois$DOI)
+psyctests %>% 
+  mutate(total_tests = n_distinct(DOI)) %>%  
+  group_by(present_in_synthnet) %>% 
+  summarise(tests_count = n_distinct(DOI),
+            tests_percentage = tests_count/first(total_tests))
+```
+
+
+## Coverage in terms of usage and number of tests in APA PsycTests
+```{r}
+psyctests_usage_by_test <- psyctests_usage_by_test %>% mutate(present_in_synthnet = DOI %in% synthnet_dois$DOI)
+
+psyctests_usage_by_test %>% 
+  mutate(total_count = sum(usage_count, na.rm = T), 
+         total_tests = n_distinct(DOI)) %>%  
+  group_by(present_in_synthnet) %>% 
+  summarise(usage_count = sum(usage_count, na.rm = T),
+            usage_percentage = usage_count/first(total_count),
+            tests_count = n_distinct(DOI),
+            tests_percentage = tests_count/first(total_tests),
+            first(total_tests))
+```
+
+## By instrument type broad
+```{r}
+psyctests_usage_by_test <- psyctests_usage_by_test %>% mutate(present_in_synthnet = DOI %in% synthnet_dois$DOI) %>% left_join(psyctests %>% select(DOI, instrument_type_broad), by = "DOI")
+
+psyctests_usage_by_test %>% 
+  group_by(instrument_type_broad) %>% 
+  mutate(total_count = sum(usage_count, na.rm = T), 
+         total_tests = n_distinct(DOI)) %>%  
+  group_by(instrument_type_broad, present_in_synthnet) %>% 
+  summarise(usage_count = sum(usage_count, na.rm = T),
+            usage_percentage = usage_count/first(total_count),
+            tests_count = n_distinct(DOI),
+            tests_percentage = tests_count/first(total_tests))
+```
+
+## Coverage over time
+```{r}
+psyctests_info <- psyctests_info %>% mutate(present_in_synthnet = DOI %in% synthnet_dois$DOI)
+
+by_year <- psyctests_info %>% 
+  filter(usage_count > 0) %>% 
+  group_by(Year) %>% 
+  mutate(total_count = sum(usage_count, na.rm = T), 
+         total_tests = n_distinct(DOI)) %>%  
+  group_by(Year, present_in_synthnet) %>% 
+  summarise(usage_count = sum(usage_count, na.rm = T),
+            usage_percentage = usage_count/first(total_count),
+            tests_count = n_distinct(DOI),
+            tests_percentage = tests_count/first(total_tests))
+
+ggplot(by_year %>% filter(present_in_synthnet), aes(Year, usage_percentage)) + geom_smooth(color = "orange") + geom_point() +
+  theme_bw()
+```
+
+## Top missing
+```{r}
+psyctests_usage_by_test %>% filter(!present_in_synthnet) %>% 
+  arrange(desc(usage_count)) %>% 
+  DT::datatable()
+```
+
+
+```{r}
+
+
+theme_set(theme_minimal(base_size = 14))
+
+psyctests_info <- psyctests_info %>% 
+  left_join(psyctests %>% select(DOI, Acronym = first_acronym), by = "DOI") %>% 
+  mutate(shortName = coalesce(Acronym, Name)) %>% 
+  mutate(shortName = case_when(
+    Name == "trail making test" ~ "TMT",
+    Name == "alcohol use disorders identification test" ~ "AUDIT",
+    Name == "perceived stress scale" ~ "PSS",
+    Name == "perceived stress scale" ~ "PSS",
+    Name == "beck anxiety inventory" ~ "BAI",
+    Name == "positive and negative affect scale" ~ "PANAS-B",
+    Name == "center for epidemiological studies depression scale" ~ "CESD",
+    Name == "stroop color and word test" ~ "SCWT",
+    Name == "clinician-administered ptsd scale" ~ "CAPS",
+    shortName == "WHO WMH-CIDI" ~ "WMH-CIDI",
+    Name == "barthel index" ~ "ADL",
+    Name == "stroop color and word test" ~ "SCWT",
+    TRUE ~ shortName
+  ))
+
+tests <- psyctests_info %>% 
+  group_by(DOI, shortName, Name, present_in_synthnet) %>%  
+  summarise(n = sum(usage_count, na.rm = T),
+            parent = "") %>% 
+  ungroup() %>% 
+  arrange(runif(n()))
+```
+
+```{r}
+source("treemap_functions.R")
+
+pal <- readRDS("data/palette.rds")
+
+pal <- rep(pal, length.out = nrow(tests) + 1)
+pal <- if_else(c(F,tests$present_in_synthnet), pal, "#EEE")
+tibble(color = as.vector(pal[-1]), synth = tests$present_in_synthnet, Name = tests$Name, n = tests$n) %>% 
+  arrange(desc(n))
+
+p <- treemap_graph(tests, colors = pal)
+
+try(save_image(p, "figures/treemap_coverage.png", width = 1400, height = 700,
+           scale = 5))
+
+p
+```
+
+## Coverage by source: SynthNet + scale hunt + SemanticNet
+
+Colored = SynthNet scale-structured coverage (original palette); orange = our
+web scale hunt (`data/restricted/scale-hunt-extractions-exploded.parquet`);
+blue = SemanticNet fills (Rosenbusch et al., `semanticnet_ingest.R`, reading the
+export repaired by `semanticnet_clean.py` / `semanticnet_match.py`);
+green = Larsen/aligns public-repository fills (`aligns_ingest.R`); grey = missing.
+Fill tiers are content-deduplicated for the search engine (`dedupe_fill_tiers.R`:
+records whose item set is near-identical, Jaccard ≥ .8, to a sibling PsycTests
+record already in the corpus are dropped; short forms stay). Deduplicated DOIs
+still count as covered here — their items are in the corpus under the sibling
+record listed in `data/processed/fill_tier_dedupe_aliases.csv`.
+
+```{r}
+source("scale_hunt_treemap.R")
+p
+```
+
+
+## Total coverage (sources pooled)
+
+Same treemap, but coverage is binary: every record covered by any source
+(SynthNet, scale hunt, SemanticNet, Larsen/aligns) gets the original colourful
+palette, missing records stay grey. Built in `scale_hunt_treemap.R`, which is
+already sourced above.
+
+```{r}
+p_all
+```

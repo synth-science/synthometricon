@@ -1,0 +1,263 @@
+---
+title: "Supplementary Note: Item sources beyond the APA PsycTests extractions"
+format:
+  docx:
+    # no heading ids: they become section-wide bookmarks, which Word shows as gray brackets
+    from: markdown-auto_identifiers
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(readr)
+library(arrow)
+library(jsonlite)
+library(purrr)
+
+# Run from analyses/corpus_coverage/. Local-only inputs (restricted item text, licensed PsycTests
+# tables, SynthNet extractions) are listed in README.md; PSYC_RECORDS / PSYC_INFO come from paths.R.
+source("paths.R")
+p <- function(...) file.path("data", ...)
+fmt <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+pc <- function(x) sprintf("%.1f%%", 100 * x)
+doi_from_path <- function(path) {
+  str_c("10.1037/t", str_sub(str_extract(basename(path), "[0-9]{9}"), 5, 9), "-000")
+}
+```
+
+```{r coverage}
+# as in coverage_by_source.R of the corpus coverage pipeline
+records <- readRDS(PSYC_RECORDS)
+usage <- readRDS(PSYC_INFO) %>%
+  group_by(DOI) %>% summarise(usage_count = sum(usage_count, na.rm = TRUE), .groups = "drop")
+n_records <- n_distinct(records$DOI)
+n_used <- nrow(usage)
+total_usage <- sum(usage$usage_count)
+
+hunt <- read_parquet(p("restricted", "scale-hunt-extractions-exploded.parquet"))
+semnet <- read_parquet(p("semanticnet", "semanticnet-extractions-exploded.parquet"))
+aligns <- read_parquet(p("aligns", "aligns-extractions-exploded.parquet"))
+aliases <- read_csv(p("processed", "fill_tier_dedupe_aliases.csv"), show_col_types = FALSE)
+
+extraction_dois <- open_dataset(p("raw-extractions-exploded.parquet")) %>%
+  filter(bucket == "scaled") %>% distinct(path) %>% collect() %>%
+  mutate(DOI = doi_from_path(path)) %>% pull(DOI) %>% unique()
+fill_dois <- function(d, tier) union(unique(doi_from_path(d$path)), aliases$dropped_DOI[aliases$dropped_tier == tier])
+hunt_dois <- fill_dois(hunt, "hunt")
+semnet_dois <- fill_dois(semnet, "semanticnet")
+aligns_dois <- fill_dois(aligns, "aligns")
+semnet_all <- union(semnet_dois, read_csv(p("processed", "semanticnet_matches_all.csv"), show_col_types = FALSE)$DOI)
+aligns_all <- union(aligns_dois, read_csv(p("processed", "aligns_matches_all.csv"), show_col_types = FALSE)$DOI)
+
+added <- list(
+  extractions = extraction_dois,
+  hunt = setdiff(hunt_dois, extraction_dois),
+  semnet = setdiff(semnet_dois, union(extraction_dois, hunt_dois)),
+  aligns = setdiff(aligns_dois, Reduce(union, list(extraction_dois, hunt_dois, semnet_dois))))
+alone <- list(extractions = extraction_dois, hunt = hunt_dois, semnet = semnet_all, aligns = aligns_all)
+covered <- function(dois) {
+  dois <- intersect(dois, records$DOI)
+  c(n = length(dois), records = length(dois) / n_records,
+    use = sum(usage$usage_count[usage$DOI %in% dois]) / total_usage)
+}
+cov_added <- map(added, covered)
+cov_alone <- map(alone, covered)
+cov_all <- covered(Reduce(union, added))
+cov_after_hunt <- covered(union(extraction_dois, hunt_dois))
+
+instruments <- function(d) n_distinct(d$path)
+items <- function(d) n_distinct(paste(d$path, d$item_item_id))
+```
+
+# Supplementary Note 6
+
+Most of the search corpus consists of items extracted from the documentation of APA PsycTests
+records. Many frequently used instruments are missing from these extractions, typically because
+PsycTests holds no item text for them, occasionally because we could not extract it. To measure how
+much this matters, we weighted each PsycTests record by how often the instrument is used according to
+the APA PsycInfo database. PsycTests contains `r fmt(n_records)` records, of which `r fmt(n_used)`
+have been used at least once. So, the item data we could extract from PsycTests covered
+`r pc(cov_added$extractions["records"])` of the records but only `r pc(cov_added$extractions["use"])`
+of all documented uses. We added items from three further sources: a targeted retrieval of the
+most-used missing instruments from the open web, the item database of the Semantic Scale Network
+(Rosenbusch et al., 2020), and the item corpus compiled for ALIGNS (Larsen et al., 2025). Items from
+each source were assigned to a PsycTests record. A source only filled records that no earlier source
+already covered, in the order extractions, web retrieval, Semantic Scale Network, ALIGNS. Together,
+the four sources cover `r pc(cov_all["records"])` of the records and `r pc(cov_all["use"])` of uses
+(Table S1).
+
+```{r table-s1}
+row <- function(label, key, d = NULL) {
+  tibble(Source = label,
+         `Instruments added` = if (is.null(d)) fmt(cov_added[[key]]["n"]) else fmt(instruments(d)),
+         `Items added` = if (is.null(d)) "" else fmt(items(d)),
+         `Records covered, added` = glue::glue("{fmt(cov_added[[key]]['n'])} ({pc(cov_added[[key]]['records'])})"),
+         `Records covered, this source alone` = glue::glue("{fmt(cov_alone[[key]]['n'])} ({pc(cov_alone[[key]]['records'])})"),
+         `Share of use, added` = pc(cov_added[[key]]["use"]),
+         `Share of use, alone` = pc(cov_alone[[key]]["use"]))
+}
+bind_rows(
+  row("PsycTests extractions", "extractions"),
+  row("Web retrieval", "hunt", hunt),
+  row("Semantic Scale Network", "semnet", semnet),
+  row("ALIGNS item corpus", "aligns", aligns),
+  tibble(Source = "All sources", `Instruments added` = "", `Items added` = "",
+         `Records covered, added` = glue::glue("{fmt(cov_all['n'])} ({pc(cov_all['records'])})"),
+         `Records covered, this source alone` = "", `Share of use, added` = pc(cov_all["use"]),
+         `Share of use, alone` = "")
+) %>%
+  knitr::kable(caption = "Table S1. Coverage of PsycTests records and of their use in PsycInfo by source.")
+```
+
+*Note.* Percentages of records are shares of all `r fmt(n_records)` PsycTests records. Share of use
+is the share of PsycInfo uses of PsycTests instruments that falls on covered records. "Added" counts
+only records not covered by a source higher in the table; "this source alone" counts every record the
+source could cover, regardless of the other sources. Records covered can exceed instruments added
+because records removed as duplicates of an instrument already in the corpus still count as covered
+(see Translations and duplicates).
+
+## Web retrieval of the most-used missing instruments
+
+```{r hunt}
+# the committed target list carries no PsycTests fields; instrument type and commercial status
+# come from the local PsycTests records
+targets <- read_csv(p("processed", "scale_hunt_targets.csv"), show_col_types = FALSE) %>%
+  select(DOI) %>%
+  left_join(records %>% distinct(DOI, .keep_all = TRUE) %>% select(DOI, instrument_type_broad, Commercial),
+            by = "DOI")
+n_targets <- nrow(targets)
+n_questionnaires <- sum(targets$instrument_type_broad == "questionnaire")
+n_commercial <- sum(targets$Commercial == "Yes", na.rm = TRUE)
+n_targets_covered <- sum(targets$DOI %in% hunt_dois)
+
+runs <- list.files(p("restricted"), "^(batch.*|pilot_raw_workflow_output)[.]json$", full.names = TRUE)
+run_info <- map(runs, ~ fromJSON(.x, simplifyVector = FALSE))
+n_agents <- sum(map_dbl(run_info, ~ .x$agentCount %||% 0))
+n_final_pass <- length(fromJSON(p("restricted", "batch09_results.json"), simplifyVector = FALSE)$result)
+
+# checker verdict per record: the best one over repeated attempts
+check <- read_csv(p("processed", "scale_hunt_check_report.csv"), show_col_types = FALSE) %>%
+  mutate(rank = match(str_extract(status, "^[a-z_A-Z]+"), c("ok", "REVIEW", "no_source_text", "not_found"))) %>%
+  filter(!is.na(rank)) %>%
+  group_by(doi) %>% slice_min(rank, n = 1, with_ties = FALSE) %>% ungroup()
+n_ok <- sum(check$rank == 1)
+n_review <- sum(check$rank == 2)
+n_scan <- sum(check$rank == 3)
+n_extracted <- n_ok + n_review + n_scan
+
+hunt_items <- hunt %>% distinct(path, item_item_id, item_reverse_coded)
+n_reverse <- sum(hunt_items$item_reverse_coded %in% TRUE)
+n_reverse_instruments <- n_distinct(hunt_items$path[hunt_items$item_reverse_coded %in% TRUE])
+```
+
+We listed the `r n_targets` most-used PsycTests records without scale-structured item data:
+`r n_questionnaires` questionnaires and `r n_targets - n_questionnaires` other rating instruments, of
+which `r n_commercial` are commercially distributed. For each record, a language model agent searched
+the open web for the items, using a web search engine, the public bibliographic databases OpenAlex,
+Crossref and Semantic Scholar, and direct downloads from official instrument websites, journal
+appendices, author-archived documents and measure repositories. Agents were not allowed to bypass
+logins or use institutional access. Each agent saved every source it used and extracted the items
+verbatim from that saved source, with their original numbering, subscale assignment, response options
+and reverse keying where the source stated them. Agents were told never to reconstruct items from
+memory. When the first agent returned nothing usable, a second, more capable agent tried again. The
+first pass used Claude Haiku 4.5, the second Claude Sonnet 5 (both Anthropic). A final pass on
+`r n_final_pass` remaining targets used Claude Sonnet 5 with a hand-written hint per instrument (the
+original publication, known hosting sites, version pitfalls). The agents ran as multi-agent workflows
+in Claude Code; in total, at least `r n_agents` agents were run.
+
+A script then compared every extracted item with the text of the saved source after normalising case,
+punctuation and whitespace. Of the `r n_extracted` records with extracted items, it found at least
+90% of the items in the source for `r n_ok`. For `r n_review` it found fewer, partly because it also
+compared the agents' administration notes, which often contained commentary absent from the source.
+For `r n_scan` records the saved source was a scan without a text layer; two of these (the Conflict
+Tactics Scales and the State-Trait Anxiety Inventory for Children) we checked by eye against the page
+images.
+
+After removing translation mismatches and duplicates, `r instruments(hunt)` instruments with
+`r fmt(items(hunt))` items remained, covering `r n_targets_covered` of the `r n_targets` targets.
+Coverage of uses rose from `r pc(cov_added$extractions["use"])` to `r pc(cov_after_hunt["use"])`,
+while coverage of records rose only from `r pc(cov_added$extractions["records"])` to
+`r pc(cov_after_hunt["records"])`. The other `r n_targets - n_targets_covered` targets could not be
+retrieved from the open web, mostly commercial instruments (for example the MMPI-2, CPI, NEO PI, PAI
+and the Wechsler, Bayley and Vineland batteries). Retrieved item text is stored locally and not
+redistributed; the published dataset contains only the pooled scale vectors.
+
+## Semantic Scale Network
+
+```{r semnet}
+ssn_items <- nrow(read.csv(p("semanticnet", "items_clean.csv")))
+ssn_scales <- read_csv(p("semanticnet", "scale_matches.csv"), show_col_types = FALSE)
+```
+
+The Semantic Scale Network (Rosenbusch et al., 2020) is an online tool that detects semantic overlap
+between psychological scales. Hannes Rosenbusch provided the underlying item database:
+`r fmt(ssn_items)` items from `r fmt(nrow(ssn_scales))` scales. Of the `r fmt(nrow(ssn_scales))` scales, `r sum(ssn_scales$match_type != "none")`
+could be matched to a PsycTests record by name. We accepted a match only if the name was distinctive
+(at least three words, at least 20 characters, or contained in the PsycTests title) and the number of
+items was within 25% of the item count listed in PsycTests. This added `r cov_added$semnet["n"]`
+records, `r instruments(semnet)` after removing duplicates, with `r fmt(items(semnet))` items. The
+database records neither subscales, response options nor reverse keying.
+
+## ALIGNS item corpus
+
+```{r aligns}
+larsen <- read_csv(p("aligns", "larsen_instruments.csv"), show_col_types = FALSE)
+```
+
+ALIGNS (Larsen et al., 2025) compiled questionnaire items from public measure repositories: the NIH
+HEAL common data elements, the Catalogue of Mental Health Measures, the Science of Behavior Change
+measures repository, the Stress Measurement Network and PROMIS. We separated formal instruments from
+generic item sets and merged versions of the same instrument, which left `r fmt(nrow(larsen))` items
+from `r n_distinct(larsen$meta_instrument_name)` instruments. These were matched to PsycTests records
+by exact name or by the core of the name (at least two words), again requiring the number of items to
+be within 25% of the PsycTests record. Version labels in parentheses were not used for matching, and
+two matches that passed both checks paired the wrong versions, so we removed them by hand. This added `r cov_added$aligns["n"]` records,
+`r instruments(aligns)` instruments with `r fmt(items(aligns))` items after removing duplicates. Like
+the Semantic Scale Network, the corpus records no reverse keying or response options.
+
+## Translations and duplicates
+
+```{r dedupe}
+dropped <- count(aliases, dropped_tier)
+n_dropped <- function(tier) dropped$n[dropped$dropped_tier == tier]
+```
+
+PsycTests holds separate records for translated versions of an instrument ("... –Chinese version").
+Because matching relied on names, English items could have been assigned to a translation record when
+the English original was already covered. The two name-matched sources therefore never filled records
+whose names mark a translation.
+
+Several added instruments turned out to duplicate one already in the corpus under a different record,
+typically because the extractions had taken the English items from a study validating a translation
+and filed them under the translation's record. We compared the normalised item text of every added
+instrument with every instrument already in the corpus and removed added instruments whose items
+overlapped by at least 80% (Jaccard similarity). This removed `r nrow(aliases)` instruments
+(`r n_dropped("hunt")` from web retrieval, `r n_dropped("semanticnet")` from the Semantic Scale
+Network, `r n_dropped("aligns")` from ALIGNS). An instrument whose items were a subset of another's,
+such as the PHQ-9 within the full PHQ, counts as a separate instrument and was kept.
+
+## Use in the search engine
+
+The search engine pools items from all four sources in the same way and records the source of each
+item. Items without reverse-keying information are treated as positively keyed. This affects the
+Semantic Scale Network and ALIGNS instruments, which record no keying, and web-retrieved instruments
+whose source did not state it (`r n_reverse` of the `r fmt(items(hunt))` web-retrieved items, in
+`r n_reverse_instruments` instruments, are marked as reverse-keyed). In these instruments, any
+reverse-keyed items enter the scale vector unreversed. The lack of keying information is flagged in
+the interface. The checks of extracted items against the
+PsycTests documentation used for the main corpus do not apply to the three additional sources.
+
+## References
+
+Larsen, K. R., Yan, S., Mueller, R. M., Sang, L., Rönkkö, M., Starzl, R., & Edmondson, D. (2025).
+*ALIGNS: Unlocking nomological networks in psychological measurement through a large language model*
+\[Preprint\]. arXiv. https://arxiv.org/abs/2509.09723
+
+Rosenbusch, H., Wanders, F., & Pit, I. L. (2020). The Semantic Scale Network: An online tool to
+detect semantic overlap of psychological scales and prevent scale redundancies. *Psychological
+Methods, 25*(3), 380–392.

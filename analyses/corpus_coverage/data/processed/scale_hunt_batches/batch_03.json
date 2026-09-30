@@ -1,0 +1,227 @@
+[
+ {
+  "doi": "10.1037/t06510-000",
+  "name": "parental bonding instrument",
+  "acronym": "PBI",
+  "alt_names": "Parker Parental Bonding Questionnaire",
+  "slug": "parental-bonding-instrument",
+  "websites": "",
+  "usage_count": 935
+ },
+ {
+  "doi": "10.1037/t48859-000",
+  "name": "wechsler preschool and primary scale of intelligence--revised",
+  "acronym": "WPPSI-R",
+  "alt_names": "",
+  "slug": "wechsler-preschool-and-primary-scale-of-intelligen",
+  "websites": "",
+  "usage_count": 933
+ },
+ {
+  "doi": "10.1037/t02178-000",
+  "name": "three factor eating questionnaire",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "three-factor-eating-questionnaire",
+  "websites": "",
+  "usage_count": 919
+ },
+ {
+  "doi": "10.1037/t03624-000",
+  "name": "multifactor leadership questionnaire",
+  "acronym": "MLQ",
+  "alt_names": "Multifactor Leadership Questionnaire",
+  "slug": "multifactor-leadership-questionnaire",
+  "websites": "http://www.mindgarden.com/products/mlq.htm",
+  "usage_count": 915
+ },
+ {
+  "doi": "10.1037/t15164-000",
+  "name": "vineland adaptive behavior scales, second edition",
+  "acronym": "Vineland-II",
+  "alt_names": "",
+  "slug": "vineland-adaptive-behavior-scales-second-edition",
+  "websites": "http://pearsonassessments.com/HAIWEB/Cultures/en-us/Productdetail.htm?Pid=Vineland-II&Mode=summary",
+  "usage_count": 911
+ },
+ {
+  "doi": "10.1037/t02254-000",
+  "name": "morningness-eveningness questionnaire",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "morningness-eveningness-questionnaire",
+  "websites": "",
+  "usage_count": 908
+ },
+ {
+  "doi": "10.1037/t03975-000",
+  "name": "eating disorder examination",
+  "acronym": "EDE",
+  "alt_names": "",
+  "slug": "eating-disorder-examination",
+  "websites": "",
+  "usage_count": 908
+ },
+ {
+  "doi": "10.1037/t07502-000",
+  "name": "brief symptom inventory-18",
+  "acronym": "BSI-18",
+  "alt_names": "",
+  "slug": "brief-symptom-inventory-18",
+  "websites": "",
+  "usage_count": 891
+ },
+ {
+  "doi": "10.1037/t73087-000",
+  "name": "behavior rating inventory of executive function",
+  "acronym": "BRIEF",
+  "alt_names": "Behavior Rating Inventory of Executive Function®",
+  "slug": "behavior-rating-inventory-of-executive-function",
+  "websites": "https://www.parinc.com/Products/Pkey/23",
+  "usage_count": 886
+ },
+ {
+  "doi": "10.1037/t66667-000",
+  "name": "international affective picture system",
+  "acronym": "IAPS",
+  "alt_names": "",
+  "slug": "international-affective-picture-system",
+  "websites": "https://csea.phhp.ufl.edu/media/iapsmessage.html",
+  "usage_count": 862
+ },
+ {
+  "doi": "10.1037/t28729-000",
+  "name": "berg balance scale",
+  "acronym": "BBS",
+  "alt_names": "",
+  "slug": "berg-balance-scale",
+  "websites": "",
+  "usage_count": 856
+ },
+ {
+  "doi": "10.1037/t04145-000",
+  "name": "short portable mental status questionnaire",
+  "acronym": "SPMSQ",
+  "alt_names": "",
+  "slug": "short-portable-mental-status-questionnaire",
+  "websites": "",
+  "usage_count": 848
+ },
+ {
+  "doi": "10.1037/t15771-000",
+  "name": "ecological momentary assessment",
+  "acronym": "EMA",
+  "alt_names": "",
+  "slug": "ecological-momentary-assessment",
+  "websites": "",
+  "usage_count": 844
+ },
+ {
+  "doi": "10.1037/t49618-000",
+  "name": "barnes akathisia rating scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "barnes-akathisia-rating-scale",
+  "websites": "",
+  "usage_count": 840
+ },
+ {
+  "doi": "10.1037/t07845-000",
+  "name": "eyberg child behavior inventory",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "eyberg-child-behavior-inventory",
+  "websites": "http://www4.parinc.com/Products/Product.aspx?ProductID=ECBI",
+  "usage_count": 819
+ },
+ {
+  "doi": "10.1037/t64702-000",
+  "name": "patient health questionnaire-8",
+  "acronym": "PHQ-8",
+  "alt_names": "",
+  "slug": "patient-health-questionnaire-8",
+  "websites": "",
+  "usage_count": 816
+ },
+ {
+  "doi": "10.1037/t42601-000",
+  "name": "children's yale-brown obsessive-compulsive scale",
+  "acronym": "CY-BOCS",
+  "alt_names": "",
+  "slug": "children-s-yale-brown-obsessive-compulsive-scale",
+  "websites": "",
+  "usage_count": 796
+ },
+ {
+  "doi": "10.1037/t77117-000",
+  "name": "work and social adjustment scale",
+  "acronym": "WSAS",
+  "alt_names": "",
+  "slug": "work-and-social-adjustment-scale",
+  "websites": "",
+  "usage_count": 796
+ },
+ {
+  "doi": "10.1037/t02357-000",
+  "name": "michigan alcoholism screening test",
+  "acronym": "MAST",
+  "alt_names": "",
+  "slug": "michigan-alcoholism-screening-test",
+  "websites": "",
+  "usage_count": 783
+ },
+ {
+  "doi": "10.1037/t01318-000",
+  "name": "twenty-item toronto alexithymia scale",
+  "acronym": "TAS-20",
+  "alt_names": "",
+  "slug": "twenty-item-toronto-alexithymia-scale",
+  "websites": "",
+  "usage_count": 764
+ },
+ {
+  "doi": "10.1037/t51564-000",
+  "name": "posttraumatic stress disorder checklist for dsm-5",
+  "acronym": "PCL-5",
+  "alt_names": "",
+  "slug": "posttraumatic-stress-disorder-checklist-for-dsm-5",
+  "websites": "http://www.ptsd.va.gov/professional/assessment/adult-sr/ptsd-checklist.asp",
+  "usage_count": 755
+ },
+ {
+  "doi": "10.1037/t02485-000",
+  "name": "posttraumatic diagnostic scale",
+  "acronym": "PTDS",
+  "alt_names": "",
+  "slug": "posttraumatic-diagnostic-scale",
+  "websites": "",
+  "usage_count": 732
+ },
+ {
+  "doi": "10.1037/t06040-000",
+  "name": "body shape questionnaire",
+  "acronym": "BSQ",
+  "alt_names": "",
+  "slug": "body-shape-questionnaire",
+  "websites": "",
+  "usage_count": 730
+ },
+ {
+  "doi": "10.1037/t04510-000",
+  "name": "inventory of parent and peer attachment",
+  "acronym": "IPPA",
+  "alt_names": "",
+  "slug": "inventory-of-parent-and-peer-attachment",
+  "websites": "",
+  "usage_count": 727
+ },
+ {
+  "doi": "10.1037/t06571-000",
+  "name": "zarit burden interview",
+  "acronym": "BI",
+  "alt_names": "The Burden Interview",
+  "slug": "zarit-burden-interview",
+  "websites": "",
+  "usage_count": 725
+ }
+]

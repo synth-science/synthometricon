@@ -1,0 +1,141 @@
+---
+title: "Corpus descriptives for the revision"
+author: "Ruben Arslan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+---
+
+Descriptive statistics of the SynthNet search corpus requested for the
+manuscript revision. Inputs are the exploded-item parquets (one row per item
+per scale membership): Björn's extractions (`data/raw-extractions-exploded.parquet`,
+bucket `scaled`) and the three fill tiers (hunt, SemanticNet, aligns). All of
+them are local-only; see `README.md`.
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr); library(tidyr); library(stringr); library(arrow); library(knitr)
+source("paths.R")
+
+doi_from_path <- function(path) {
+  str_c("10.1037/t", str_sub(str_extract(basename(path), "[0-9]{9}"), 5, 9), "-000")
+}
+cols <- c("path", "bucket", "scale_id", "scale_name", "scale_id_path", "scale_depth",
+          "item_item_id", "item_reverse_coded")
+
+load_tier <- function(file, tier, dataset = FALSE) {
+  d <- if (dataset) open_dataset(file) else read_parquet(file)
+  d %>% select(all_of(cols)) %>% collect() %>% mutate(tier = tier)
+}
+items <- bind_rows(
+  load_tier("data/raw-extractions-exploded.parquet", "synthnet", dataset = TRUE) %>% filter(bucket == "scaled"),
+  load_tier("data/restricted/scale-hunt-extractions-exploded.parquet", "hunt"),
+  load_tier("data/semanticnet/semanticnet-extractions-exploded.parquet", "semanticnet"),
+  load_tier("data/aligns/aligns-extractions-exploded.parquet", "aligns")
+) %>%
+  mutate(DOI = doi_from_path(path),
+         scale_depth = coalesce(scale_depth, 1))
+```
+
+## Unit of analysis
+
+A row is one item assigned to one scale. `scale_id_path` lists the scale and
+its ancestors, so an item that belongs to a subscale is counted for that
+subscale and, via the path, for its parent scale(s). Three counts are
+reported:
+
+- **per instrument** (PsycTests record): distinct items in the record;
+- **per scale node, own items only**: items assigned directly to the scale
+  (for a parent scale, only items not assigned to any subscale);
+- **per scale node, including subscales**: items assigned to the scale or any
+  scale below it, which is the count that matters when items are pooled into
+  one embedding per scale.
+
+```{r structure}
+items %>% count(tier, name = "rows") %>%
+  left_join(items %>% distinct(tier, DOI) %>% count(tier, name = "instruments"), by = "tier") %>%
+  left_join(items %>% distinct(tier, DOI, scale_id) %>% count(tier, name = "scale_nodes"), by = "tier") %>%
+  left_join(items %>% distinct(tier, DOI, item_item_id) %>% count(tier, name = "distinct_items"), by = "tier") %>%
+  kable(caption = "Corpus size by tier")
+items %>% distinct(tier, DOI, scale_id, scale_depth) %>% count(tier, scale_depth) %>%
+  pivot_wider(names_from = scale_depth, values_from = n, values_fill = 0) %>%
+  kable(caption = "Scale nodes by depth (1 = top-level scale)")
+```
+
+```{r counts}
+per_instrument <- items %>% distinct(tier, DOI, item_item_id) %>% count(tier, DOI, name = "n_items")
+
+per_node_own <- items %>% distinct(tier, DOI, scale_id, item_item_id) %>%
+  count(tier, DOI, scale_id, name = "n_items")
+
+# an item counts for every scale on its path
+per_node_incl <- items %>%
+  select(tier, DOI, scale_id_path, item_item_id) %>%
+  unnest(scale_id_path) %>%
+  distinct(tier, DOI, scale_id = scale_id_path, item_item_id) %>%
+  count(tier, DOI, scale_id, name = "n_items")
+
+depth <- items %>% distinct(tier, DOI, scale_id, scale_depth)
+per_node_own <- per_node_own %>% left_join(depth, by = c("tier", "DOI", "scale_id"))
+per_node_incl <- per_node_incl %>% left_join(depth, by = c("tier", "DOI", "scale_id"))
+
+describe <- function(x) {
+  tibble(n = length(x), mean = mean(x), sd = sd(x), median = median(x),
+         q10 = quantile(x, .1), q25 = quantile(x, .25), q75 = quantile(x, .75), q90 = quantile(x, .9),
+         min = min(x), max = max(x), share_1_item = mean(x == 1), share_le_3 = mean(x <= 3))
+}
+summ <- function(df, ...) {
+  bind_rows(
+    df %>% summarise(describe(n_items), .by = c(...)),
+    df %>% summarise(describe(n_items)) %>% mutate(tier = "all")
+  )
+}
+```
+
+## Items per instrument
+
+```{r}
+summ(per_instrument, tier) %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% kable()
+```
+
+## Items per scale node, own items only
+
+```{r}
+summ(per_node_own, tier) %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% kable()
+per_node_own %>% filter(tier == "synthnet") %>% summarise(describe(n_items), .by = scale_depth) %>%
+  arrange(scale_depth) %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% kable(caption = "SynthNet tier, by depth")
+```
+
+## Items per scale node, including subscales
+
+This is the number of item embeddings pooled into a scale vector.
+
+```{r}
+summ(per_node_incl, tier) %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% kable()
+per_node_incl %>% filter(tier == "synthnet") %>% summarise(describe(n_items), .by = scale_depth) %>%
+  arrange(scale_depth) %>% mutate(across(where(is.numeric), ~ round(.x, 2))) %>% kable(caption = "SynthNet tier, by depth")
+```
+
+## Headline
+
+```{r}
+all_incl <- per_node_incl$n_items
+all_own <- per_node_own$n_items
+all_inst <- per_instrument$n_items
+cat(sprintf("Across the whole corpus (%s instruments, %s scale nodes):\n",
+            format(length(all_inst), big.mark = ","), format(length(all_incl), big.mark = ",")))
+cat(sprintf("  items per instrument:                     mean %.1f, median %d\n", mean(all_inst), as.integer(median(all_inst))))
+cat(sprintf("  items per scale (incl. subscales):        mean %.1f, median %d\n", mean(all_incl), as.integer(median(all_incl))))
+cat(sprintf("  items per scale (own items only):         mean %.1f, median %d\n", mean(all_own), as.integer(median(all_own))))
+cat(sprintf("  scales with a single item (incl. subscales): %.1f %%\n", 100 * mean(all_incl == 1)))
+```
+
+```{r write}
+out <- bind_rows(
+  summ(per_instrument, tier) %>% mutate(unit = "instrument"),
+  summ(per_node_own, tier) %>% mutate(unit = "scale_node_own_items"),
+  summ(per_node_incl, tier) %>% mutate(unit = "scale_node_incl_subscales")
+) %>% select(unit, tier, everything())
+write.csv(out, "data/processed/descriptives_items_per_scale.csv", row.names = FALSE)
+```

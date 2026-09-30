@@ -1,0 +1,226 @@
+---
+title: 'Data Cleaning: Larsen Corpus'
+author: "Annika Kuelpmann & Laura Juenger"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_download: true
+    code_folding: show
+    highlight: haddock
+    theme: flatly
+    toc: true
+    toc_float: true
+  pdf_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      results = "hold",
+                      comment = NA)
+
+```
+
+```{r packages}
+
+library(tidyverse)
+library(arrow)
+library(knitr)
+library(tinytex)
+library(markdown)
+
+```
+
+## Overview
+
+This document cleans and preprocesses the Larsen corpus for use in the SYNTH-Net Search project. We separate distinct psychological instruments (e.g., standardized questionnaires, scales, inventories) from vague or generic constructs and items. The aim is to create a cleaned subset of instruments and their respective items that can be added to the SYNTH-Net database.
+
+## To-Do List
+
+### **1. Remaining Scales Subset**
+
+- [x] Check the instrument list manually for false negatives
+  (cases where `meta_instrument_name` is actually a valid scale or questionnaire).
+- [x] Reclassify false negatives — these should be moved to *instruments*.
+
+---
+
+### **2. Instruments Subset**
+
+- [x] Check the instrument list manually for false positives
+  (cases where `meta_instrument_name` refers to a generic or unclear construct, not a formal instrument).
+- [x] Reclassify false positives — these should be removed from *instruments*.
+- [x] Combine instruments that are essentially the same but differ slightly in naming
+  (e.g., versions of AUDIT-10).
+  - To do this, you will likely need to compare item counts and items contents.
+- [x] Export the cleaned instruments dataset as `.csv` or `.parquet`.
+- [ ] Add DOIs for the instruments in the final dataset if available (this will be likely a manual step).  
+
+---
+
+### **How To**
+
+- change and expand the existing R code as needed. 
+- you will need the packages arrow and tidyverse, install them if necessary. 
+- especially helpful tidyverse functions include:  
+  - `filter()` – for subsetting data, filter out rows, creating additional filtering rules  
+  - `mutate()` – for reclassification or recoding  
+  - `arrange()` – for sorting and inspection  
+
+
+## Load Data Set
+
+```{r load-data}
+
+# load data set
+data <- read_parquet("larsen_data/larsen_corpus.parquet")
+
+```
+
+## Instruments Subset
+
+Create a subset containing only sufficiently defined instruments (questionnaires, scales, inventories) and excluding vague/generic construct names.
+
+```{r defined-subset}
+
+# filter for well-defined instruments using the following criteria:
+# 1. Acronym in parentheses (all caps): (BDI), (SDQ)
+# 2. Acronym with numbers/hyphens: (PIQ-C), (TAPS-2), (LOT-R)
+# 3. Item count: 21-item, 12-item
+# 4. Formal instrument keywords: Questionnaire, Scale, Inventory, etc.
+# 5. "Test" keyword (case-insensitive, excluding "Testim")
+# 6. "questionnaire" lowercase
+# 7. Starts with 3+ capital letters: PROMIS, QUALIDEM, TBI-CareQOL
+instruments <- data %>%
+  filter(
+    str_detect(meta_instrument_name, "[(][A-Z]{2,}[)]") |
+    str_detect(meta_instrument_name, "[(][A-Z]+-?[A-Z0-9]+[)]") |
+    str_detect(meta_instrument_name, "[0-9]+-item") |
+    str_detect(meta_instrument_name,
+               "Questionnaire|Scale|Inventory|Index|Survey|Checklist|Assessment|Measure") |
+    str_detect(meta_instrument_name, "(?i)Test(?!im)") |
+    str_detect(meta_instrument_name, "(?i)questionnaire") |
+    str_detect(meta_instrument_name, "^[A-Z]{3,}[- ]")
+  )
+
+cat("Instruments subset:\n")
+cat("- Rows:", nrow(instruments), "\n")
+cat("- Unique instruments:", n_distinct(instruments$meta_instrument_name), "\n")
+
+```
+
+```{r instruments-list}
+
+# show instruments in subset
+cat("\n\nall instruments in instruments subset:\n")
+instrument_names <- instruments %>%
+  distinct(meta_instrument_name)
+
+#print(instrument_names, n = Inf)
+
+```
+
+## Remaining Data (Excluded from Instruments Subset)
+
+```{r remaining-subset}
+
+# create remaining data (excluded from well-defined)
+# using same refined criteria as above
+remaining <- data %>%
+  filter(
+    !is.na(meta_instrument_name) &
+    !str_detect(meta_instrument_name, "[(][A-Z]{2,}[)]") &
+    !str_detect(meta_instrument_name, "[(][A-Z]+-?[A-Z0-9]+[)]") &
+    !str_detect(meta_instrument_name, "[0-9]+-item") &
+    !str_detect(meta_instrument_name, "Questionnaire|Scale|Inventory|Index|Survey|Checklist|Assessment|Measure") &
+    !str_detect(meta_instrument_name, "(?i)Test(?!im)") &
+    !str_detect(meta_instrument_name, "(?i)questionnaire") &
+    !str_detect(meta_instrument_name, "^[A-Z]{3,}[- ]")
+  )
+
+cat("Remaining data (excluded from instruments subset):\n")
+cat("- Rows:", nrow(remaining), "\n")
+cat("- Unique instruments:", n_distinct(remaining$meta_instrument_name), "\n")
+
+```
+
+```{r remaining-instruments-list}
+
+# show all instruments in remaining data
+cat("\n\nall instruments
+    in remaining data:\n")
+instrument_names_remaining <- remaining %>%
+  distinct(meta_instrument_name, .keep_all = TRUE)
+
+#print(instrument_names_remaining, n = Inf)
+
+```
+
+```{r new-instruments-list}
+
+#Zeilennummern false negatives
+indices_fn <- c(3, 6, 12, 13, 29, 77, 78, 111, 143, 325, 349, 436, 468, 528)
+
+# namen der false negatives aus der distinct-liste extrahieren (basis für index-lookup)
+fn_names <- instrument_names_remaining[indices_fn, ] %>%
+  pull(meta_instrument_name)
+
+# alle items (nicht nur eine zeile) für diese instrumente aus remaining holen
+false_negatives <- remaining %>%
+  filter(meta_instrument_name %in% fn_names)
+
+instruments <- bind_rows(instruments, false_negatives)
+
+#doppelte instruments ausschließen
+instruments <- instruments %>%
+  filter(!meta_instrument_name %in% c(
+    "Alcohol Use Disorders Identification Test (10-item) (AUDIT)",
+    "EQ-5D-5L (Descriptive system only) (5-item)",
+    "Trauma History Questionnaire (THQ)",
+    "Stressful Life Events Screening Questionnaire",
+    "Everyday Discrimination Scale",
+    "The Everyday Discrimination Scale",
+    "Satisfaction With Life Scale (SWLS) (5-item)",
+    "Satisfaction With Life Scale (SWLS)",
+    "Extended Satisfaction With Life Scale",
+    "Substance Use Risk Profile Scale (SURPS)",
+    "Rosenberg Self-Esteem Scale (10-item) (RSES)",
+    "Effort-Reward Imbalance Questionnaire",
+    "GAD-7 Generalised Anxiety Disorder Assessment (7-item) (GAD-7)",
+    "Generalised Anxiety Disorder Scale (GAD-7)",
+    "UCLA loneliness scale version 3",
+    "Perceived Stress Scale (10-item)(PSS-10)",
+    "PTSD Checklist Civilian Version (PCL-C)",
+    "Warwick-Edinburgh Mental Wellbeing Scale (14-item) (WEMWBS)",
+    "Warwick-Edinburgh mental well-being scale (WEMWBS)",
+    "Patient Health Questionnaire-2 (2-item) (PHQ-2)"
+    )
+  )
+
+```
+
+
+```{r undefined-instruments}
+
+# data without instrument info
+undefined <- data %>%
+  filter(is.na(meta_instrument_name))
+
+cat("Undefined instruments (no instrument name provided):\n")
+cat("- Rows:", nrow(undefined), "\n")
+
+```
+
+## Export Data
+
+```{r export}
+#export als csv
+write_csv(instruments, "larsen_instruments.csv")
+
+# export data in parquet format 
+write_parquet(instruments, "larsen_instruments.parquet")
+
+```

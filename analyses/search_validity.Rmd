@@ -1,0 +1,454 @@
+---
+title: "How often Synthometricon shows related scales"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: 'hide'
+    self_contained: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = TRUE, fig.width = 8, fig.height = 4,
+                      fig.path = "output/search_validity/", cache.path = "output/search_validity/cache/")
+```
+
+```{r libraries}
+library(tidyverse)
+library(arrow)
+library(glue)
+library(knitr)
+theme_set(theme_bw())
+set.seed(20260929)
+
+model_name <- "ItemSimilarityTraining-20240502-trial12"
+study_tags <- c(pilot = "osf-bainbridge-2021-s2-0", validation = "validation-study-2024-11-01")
+
+# Inputs are the published data of the SurveyBot3000 paper, downloaded once into a local cache
+data_dir <- "output/search_validity/data"
+data_url <- "https://raw.githubusercontent.com/rubenarslan/surveybot3000/327966d194e78699b891bd8620b999d61c7e0ea2/data/intermediate"
+embeddings_url <- "https://raw.githubusercontent.com/synth-science/surveybot3000/b7601cc3e97d2cd5be973b3fe93af56bb35b9b7a/validation_study/embeddings_surveybot3000.feather"
+fetch <- function(url) {
+  dir.create(data_dir, showWarnings = FALSE, recursive = TRUE)
+  path <- file.path(data_dir, basename(url))
+  if (!file.exists(path)) download.file(url, path, mode = "wb", quiet = TRUE)
+  path
+}
+
+# From the SurveyBot3000 analysis code (global_functions.R): the first item's key is given, and
+# every other item is reverse-keyed if it correlates negatively with the first item
+find_reverse_items_by_first_item <- function(rs, first_item_key) {
+  items <- rs[-1, 1]
+  if (first_item_key == 1) {
+    reversed <- which(items < 0) + 1
+  } else {
+    reversed <- c(1, which(items > 0) + 1)
+  }
+  colnames(rs)[reversed]
+}
+```
+
+Synthometricon (formerly SynthNet) lets researchers search APA PsycTests with a set of questionnaire
+items. The engine embeds each item with SurveyBot3000, a language model fine-tuned so that the cosine
+between two item vectors predicts the correlation between the two items. It represents a scale the
+way a scale score is formed: the vectors of reverse-keyed items are multiplied by −1, and all item
+vectors are averaged. Negating an item vector flips the sign of every correlation predicted for that
+item and leaves its size unchanged, which is exactly what reverse-scoring does. The query is pooled
+from the user's items, using the "(R)" marks, and every scale in the database from its items, using
+its documented keying. For each database scale, the engine displays the cosine between the two pooled
+vectors and sorts the results by its absolute value. In the SurveyBot3000 studies, this value (the
+synthetic scale correlation) predicted the empirical correlation between two scales with an accuracy
+of *r* = .87 in the pilot study and *r* = .83 in the validation study.
+
+Accuracy summarises all scale pairs at once. A researcher using the search engine asks something
+narrower: if a scale in the database is strongly related to mine, will it appear high enough in the
+list for me to see it? We answer this question with the data from both studies, and then ask how the
+answer changes when the query consists of only a few items, and when reverse-keyed items are not
+marked.
+
+# Data
+
+```{r data}
+read_study <- function(study, what) {
+  read_feather(fetch(glue("{data_url}/{model_name}.raw.{study_tags[[study]]}.{what}.feather")))
+}
+
+load_study <- function(study) {
+  mapping <- read_study(study, "mapping2") %>% rename(scale_0 = scale0, scale_1 = scale1)
+  scales <- read_study(study, "scales")
+  human <- read_study(study, "human")
+  if (study == "pilot") {
+    machine <- as.matrix(read_study(study, "machine"))
+  } else {
+    emb <- read_feather(fetch(embeddings_url))
+    machine <- do.call(cbind, emb$embeddings)
+    colnames(machine) <- emb$id
+  }
+  # items per scale and reverse-keyed items, as in the main analysis
+  items_by_scale <- bind_rows(
+    scales %>% filter(scale_1 == "") %>%
+      left_join(mapping %>% select(-scale_1, -any_of("keyed")), by = c("instrument", "scale_0")),
+    scales %>% filter(scale_1 != "") %>%
+      left_join(mapping %>% select(-any_of("keyed")), by = c("instrument", "scale_0", "scale_1"))
+  )
+  items <- split(items_by_scale$variable, items_by_scale$scale)
+  if ("keyed" %in% names(mapping)) {
+    keyed <- setNames(mapping$keyed, mapping$variable)
+    reverse <- map(items, ~ .x[keyed[.x] == -1])
+  } else {
+    human_cor <- cor(human, use = "p")
+    first_key <- setNames(scales$keyed, scales$scale)
+    reverse <- imap(items, ~ find_reverse_items_by_first_item(human_cor[.x, .x, drop = FALSE], first_key[[.y]]))
+  }
+  pairs <- read_study(study, "scale_correlations")
+  if (study == "validation") {
+    pairs <- pairs %>% filter(lengths(items[scale_a]) >= 3, lengths(items[scale_b]) >= 3)
+  }
+  instruments <- n_distinct(scales$instrument[scales$scale %in% c(pairs$scale_a, pairs$scale_b)])
+  list(human = human, machine = machine, items = items, reverse = reverse, pairs = pairs,
+       instruments = instruments)
+}
+
+studies <- list(pilot = load_study("pilot"), validation = load_study("validation"))
+n_scales <- map_int(studies, ~ n_distinct(c(.x$pairs$scale_a, .x$pairs$scale_b)))
+n_pairs <- map_int(studies, ~ nrow(.x$pairs))
+
+# pooling as in the engine: reverse-keyed item vectors negated, then averaged (unit length);
+# the displayed value is the cosine of two pooled vectors
+scale_vector <- function(s, items, reverse) {
+  v <- colMeans(t(s$machine[, items, drop = FALSE]) * ifelse(items %in% reverse, -1, 1))
+  v / sqrt(sum(v^2))
+}
+# empirical scale score: reverse-keyed item responses negated, then averaged
+keyed_mean <- function(s, items, reverse) {
+  x <- as.matrix(s$human[, items, drop = FALSE])
+  x[, items %in% reverse] <- -x[, items %in% reverse]
+  rowMeans(x, na.rm = TRUE)
+}
+displayed_values <- function(s, reverse = s$reverse) {
+  scales <- unique(c(s$pairs$scale_a, s$pairs$scale_b))
+  vec <- map(set_names(scales), ~ scale_vector(s, s$items[[.x]], reverse[[.x]]))
+  map2_dbl(s$pairs$scale_a, s$pairs$scale_b, ~ sum(vec[[.x]] * vec[[.y]]))
+}
+# the paper's synthetic scale correlation is a Pearson correlation across embedding dimensions;
+# check that it equals the engine's cosine
+max_difference <- max(map_dbl(studies, ~ max(abs(displayed_values(.x) - .x$pairs$synthetic_r))))
+```
+
+We used the scale pairs analysed in the main paper. The pilot study used the holdout data of
+Bainbridge et al. (2022): `r studies$pilot$instruments` widely used personality and well-being
+questionnaires, `r n_scales["pilot"]` scales and subscales, and `r format(n_pairs["pilot"], big.mark = ",")`
+scale pairs, answered by 493 people. The validation study used `r n_scales["validation"]` scales from
+`r studies$validation$instruments` questionnaires sampled from APA PsycTests
+(`r format(n_pairs["validation"], big.mark = ",")` pairs), answered by 387 people.^[As in the main
+paper, the validation analysis includes only scales with at least three items, whereas the pilot
+analysis also includes six two-item scales.] Pairs of a scale with one of its own subscales are
+excluded. The pilot questionnaires are well known and often published, so the pilot study probably
+shows the engine at its best. The validation study is closer to a random draw from the database. We
+report the two studies separately. The paper computed the synthetic scale correlation as a Pearson
+correlation across the embedding dimensions of the keyed mean vectors. For these scale pairs, it
+differs from the engine's cosine by at most `r sub("^0", "", formatC(max_difference, format = "f", digits = 4))`,
+so we use the paper's values as displayed values.
+
+We call two scales *strongly related* if their true correlation is at least .70 in absolute value,
+and *moderately related* if it is at least .50. A related scale counts as *shown* at a displayed
+value *c* if its displayed value has the same sign as the true correlation and is at least *c* in
+absolute value. Negative relations therefore count, as long as the engine gets their sign right.
+
+The empirical correlations in the two studies are themselves estimates. With about 400 to 500
+participants, a correlation of .50 to .70 has a standard error of about .02 to .04, so pairs close to
+.50 or .70 could fall on either side. To take this into account, we drew a plausible true correlation
+for every pair from a normal distribution centred on its observed correlation, with its standard
+error as the standard deviation, classified all pairs, and repeated this 1,000 times. We report the
+median over these repetitions with a 95% interval.
+
+```{r sensitivity-function}
+# Share of truly related pairs (|true r| >= t) shown at each display value c, over draws of
+# the true correlation from N(observed r, SE). Returns median, 95% interval, and the
+# number of truly related pairs.
+sensitivity <- function(observed, se, displayed, cutoffs, ts, ndraws = 1000) {
+  shown <- array(NA_real_, c(ndraws, length(cutoffs), length(ts)))
+  related <- matrix(NA_real_, ndraws, length(ts))
+  for (d in seq_len(ndraws)) {
+    true <- observed + se * rnorm(length(observed))
+    for (j in seq_along(ts)) {
+      rel <- abs(true) >= ts[j]
+      related[d, j] <- sum(rel)
+      signed <- displayed[rel] * sign(true[rel])
+      shown[d, , j] <- colMeans(outer(signed, cutoffs, ">="))
+    }
+  }
+  map_dfr(seq_along(ts), function(j) tibble(
+    t = ts[j], cutoff = cutoffs,
+    share = apply(shown[, , j, drop = FALSE], 2, median),
+    lower = apply(shown[, , j, drop = FALSE], 2, quantile, .025),
+    upper = apply(shown[, , j, drop = FALSE], 2, quantile, .975),
+    related = median(related[, j])))
+}
+
+pct <- function(x) sub("^0\\.", ".", formatC(x, format = "f", digits = 2))
+study_colours <- c("Pilot study" = "#E69F00", "Validation study" = "#0072B2")  # Okabe-Ito, colourblind-safe
+ci <- function(m, l, u) glue("{pct(m)} [{pct(l)}, {pct(u)}]")
+```
+
+# How often related scales are shown
+
+```{r sensitivity}
+cutoffs <- round(seq(.05, .90, by = .01), 2)
+sens <- map_dfr(studies, ~ sensitivity(.x$pairs$empirical_r, .x$pairs$empirical_r_se,
+                                       .x$pairs$synthetic_r, cutoffs, c(.50, .70)), .id = "study")
+at <- function(st, tt, c) sens %>% filter(study == st, t == tt, abs(cutoff - c) < 1e-9)
+of10 <- function(st, tt, c) round(at(st, tt, c)$share * 10)
+related_n <- function(st, tt) round(at(st, tt, .30)$related)
+```
+
+```{r sensitivity-plot, fig.cap = "Share of related scales shown at or above each displayed value. Lines are medians over 1,000 draws of the true correlations, bands are 95% intervals."}
+sens %>%
+  filter(cutoff >= .10, cutoff <= .80) %>%
+  mutate(t = factor(t, labels = c("Moderately related (|true r| ≥ .50)", "Strongly related (|true r| ≥ .70)")),
+         study = factor(study, labels = c("Pilot study", "Validation study"))) %>%
+  ggplot(aes(cutoff, share, ymin = lower, ymax = upper, colour = study, fill = study)) +
+  geom_ribbon(alpha = .2, colour = NA) +
+  geom_line() +
+  facet_wrap(~ t) +
+  scale_colour_manual(values = study_colours) +
+  scale_fill_manual(values = study_colours) +
+  scale_x_continuous("Displayed value (absolute)", breaks = seq(.1, .8, by = .1)) +
+  scale_y_continuous("Share of related scales shown", limits = c(0, 1)) +
+  theme(legend.position = "bottom", legend.title = element_blank())
+```
+
+In the validation study, `r of10("validation", .70, .30)` of 10 strongly related scales were shown at
+a displayed value of .30 or higher, and `r of10("validation", .70, .40)` of 10 at .40 or higher. In
+the pilot study, all strongly related scales reached .40. Moderately related scales needed a lower
+displayed value to be seen: at .30, `r of10("validation", .50, .30)` of 10 were shown in the
+validation study and `r of10("pilot", .50, .30)` of 10 in the pilot study. These estimates rest on
+about `r related_n("validation", .70)` strongly related pairs in the validation study and
+`r related_n("pilot", .70)` in the pilot study.
+
+```{r sensitivity-table}
+sens %>%
+  filter(cutoff %in% c(.30, .40, .50)) %>%
+  mutate(value = ci(share, lower, upper), cutoff = paste("Shown at", pct(cutoff))) %>%
+  select(study, t, related, cutoff, value) %>%
+  pivot_wider(names_from = cutoff, values_from = value) %>%
+  mutate(study = str_to_title(study), t = pct(t), related = round(related)) %>%
+  rename(Study = study, `|true r| at least` = t, `Related pairs` = related) %>%
+  kable(align = "llrrrr", caption = "Share of related scales shown at displayed values of .30, .40 and .50, with 95% intervals.")
+```
+
+## How far down the list to read
+
+The same results can be turned around: to see a given share of the related scales, how far down the
+result list does a user need to read?
+
+```{r read-down}
+read_down <- expand_grid(target = c(.80, .90, .95), sens %>% distinct(study, t)) %>%
+  rowwise() %>%
+  mutate(cutoff = max(sens$cutoff[sens$study == study & sens$t == t & sens$share >= target])) %>%
+  ungroup()
+rd <- function(st, tt, target) pct(read_down$cutoff[read_down$study == st & read_down$t == tt & read_down$target == target])
+```
+
+```{r read-down-plot, fig.width = 8, fig.height = 6}
+plot_data <- read_down %>%
+  mutate(panel = factor(t, levels = c(.70, .50),
+                        labels = c("Strongly related scales\n(true correlation of .70 or more)",
+                                   "Moderately related scales\n(true correlation of .50 or more)")),
+         target = factor(paste0(target * 100, "%"), levels = c("80%", "90%", "95%")),
+         study = factor(study, levels = c("pilot", "validation"), labels = c("Pilot study", "Validation study")))
+study_labels <- plot_data %>% filter(target == "80%", t == .70) %>%
+  mutate(cutoff = cutoff + if_else(study == "Pilot study", .035, -.035))
+
+ggplot(plot_data, aes(target, cutoff, colour = study)) +
+  geom_line(aes(group = target), colour = "grey80", linewidth = 1.2) +
+  geom_point(size = 3.5) +
+  geom_text(aes(label = pct(cutoff)), nudge_x = .17, size = 3.8, show.legend = FALSE) +
+  geom_text(aes(label = study), data = study_labels, size = 3.8, fontface = "bold", show.legend = FALSE) +
+  facet_wrap(~ panel) +
+  scale_colour_manual(values = study_colours, guide = "none") +
+  scale_x_discrete("Share of related scales the user sees", expand = expansion(add = .5)) +
+  scale_y_continuous("Displayed value to read down to", limits = c(.10, .62), breaks = seq(.1, .6, by = .1),
+                     labels = pct) +
+  labs(title = "How far down the result list to read to see most related scales",
+       subtitle = paste("A lower value means reading further down the list. For scales like those in the",
+                        "validation study,\nusers had to read much further down than for well-known",
+                        "personality questionnaires."),
+       caption = paste("Data: SurveyBot3000 pilot study (22 personality and well-being questionnaires, N = 493) and",
+                       "validation study\n(57 scales sampled from APA PsycTests, N = 387). Median over 1,000 draws of",
+                       "the true correlations; about 45 strongly\nand 180 to 430 moderately related scale pairs per study.")) +
+  theme_minimal(base_size = 13) +
+  theme(plot.title = element_text(face = "bold"),
+        plot.title.position = "plot",
+        plot.caption = element_text(hjust = 0, colour = "grey40", size = 9),
+        plot.caption.position = "plot",
+        strip.text = element_text(hjust = 0, face = "bold"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank())
+```
+
+To see 9 of 10 strongly related scales, a user needed to read down to `r rd("pilot", .70, .90)` in the
+pilot study but to `r rd("validation", .70, .90)` in the validation study. For moderately related
+scales, the same share required reading down to `r rd("pilot", .50, .90)` and
+`r rd("validation", .50, .90)`. How many results this means depends on the query; the engine shows
+the number of results above any displayed value.
+
+```{r compression}
+# spread of true and displayed values, and the displayed value expected for a true correlation
+# of .70; true-score variance and slope are corrected for sampling error in the empirical r
+compression <- map_dfr(studies, function(s) {
+  p <- s$pairs
+  error_var <- mean(p$empirical_r_se^2)
+  reliability <- 1 - error_var / var(p$empirical_r)
+  slope <- coef(lm(synthetic_r ~ empirical_r, data = p))[[2]] / reliability
+  tibble(sd_true = sqrt(var(p$empirical_r) - error_var),
+         sd_displayed = sd(p$synthetic_r),
+         at_70 = mean(p$synthetic_r) + slope * (.70 - mean(p$empirical_r)))
+}, .id = "study")
+cp <- function(st, col) pct(compression[[col]][compression$study == st])
+```
+
+The two studies differ this much even though their accuracy is similar (.87 and .83), because
+accuracy is a correlation. It shows whether scale pairs are put in the right order relative to each
+other, but not whether the displayed values are on the same scale as the true correlations. In the
+pilot study they were: the true correlations had a standard deviation of `r cp("pilot", "sd_true")`,
+the displayed values one of `r cp("pilot", "sd_displayed")`. In the validation study the displayed
+values were compressed toward zero, with a standard deviation of `r cp("validation", "sd_displayed")`
+against `r cp("validation", "sd_true")` for the true correlations. A pair with a true correlation of
+.70 was displayed at about `r cp("pilot", "at_70")` on average in the pilot study, but at about
+`r cp("validation", "at_70")` in the validation study. Most of the difference in how far to read comes
+from this compression; the somewhat larger prediction error in the validation study adds a little.
+Because the validation study is closer to the database as a whole, its values are the better guide
+for how far to read.
+
+# Short queries
+
+```{r query-length, cache = TRUE}
+query_pairs <- imap_dfr(studies, function(s, study) {
+  scales <- unique(c(s$pairs$scale_a, s$pairs$scale_b))
+  vec <- map(set_names(scales), ~ scale_vector(s, s$items[[.x]], s$reverse[[.x]]))
+  score <- map(set_names(scales), ~ keyed_mean(s, s$items[[.x]], s$reverse[[.x]]))
+  partners <- bind_rows(s$pairs %>% select(query = scale_a, target = scale_b),
+                        s$pairs %>% select(query = scale_b, target = scale_a))
+  map_dfr(c(1, 2, 3, 5, Inf), function(k) map_dfr(scales, function(q) {
+    items <- s$items[[q]]
+    if (is.finite(k) && length(items) <= k) return(NULL)
+    subsets <- if (is.infinite(k)) list(items)
+      else if (choose(length(items), k) <= 10) combn(items, k, simplify = FALSE)
+      else unique(map(1:10, ~ sort(sample(items, k))))
+    targets <- partners$target[partners$query == q]
+    map_dfr(subsets, function(sub) {
+      v <- scale_vector(s, sub, s$reverse[[q]])
+      h <- keyed_mean(s, sub, s$reverse[[q]])
+      tibble(study, k, query = q, target = targets,
+             displayed = map_dbl(targets, ~ sum(v * vec[[.x]])),
+             observed = map_dbl(targets, ~ cor(h, score[[.x]], use = "p")),
+             n = map_int(targets, ~ sum(complete.cases(h, score[[.x]]))))
+    })
+  }))
+}) %>% mutate(se = (1 - observed^2) / sqrt(n - 3))
+
+# compare each subset size with the full scales of the same queries
+query_length <- query_pairs %>% filter(is.finite(k)) %>% distinct(study, k) %>%
+  pmap_dfr(function(study, k) {
+    sub <- query_pairs %>% filter(study == !!study, k == !!k)
+    full <- query_pairs %>% filter(study == !!study, is.infinite(k), query %in% sub$query)
+    s_sub <- sensitivity(sub$observed, sub$se, sub$displayed, .30, c(.50, .70), ndraws = 500)
+    s_full <- sensitivity(full$observed, full$se, full$displayed, .30, c(.50, .70), ndraws = 500)
+    tibble(study, k, scales = n_distinct(sub$query),
+           accuracy_k = cor(sub$displayed, sub$observed), accuracy_full = cor(full$displayed, full$observed),
+           strong_k = s_sub$share[s_sub$t == .70], strong_full = s_full$share[s_full$t == .70],
+           moderate_k = s_sub$share[s_sub$t == .50], moderate_full = s_full$share[s_full$t == .50])
+  })
+ql <- function(st, kk, col) query_length[[col]][query_length$study == st & query_length$k == kk]
+```
+
+Users often search with a few items rather than a whole scale. To see what this costs, we took every
+scale in both studies, drew random sets of 1, 2, 3 or 5 of its items (up to 10 different sets per
+scale), and used each set as a query against every other scale of the same study. For each query we
+computed the displayed value from the averaged item vectors, as the engine does, and the empirical
+correlation between the mean of the query items and the comparison scale from the raw responses. Only
+scales with more items than the query contribute to a row, and each row compares the short queries
+with the full versions of the same scales.
+
+```{r query-length-table}
+query_length %>%
+  arrange(study, k) %>%
+  transmute(Study = str_to_title(study), `Query items` = k, Scales = scales,
+            Accuracy = glue("{pct(accuracy_k)} ({pct(accuracy_full)})"),
+            `Strongly related shown at .30` = glue("{pct(strong_k)} ({pct(strong_full)})"),
+            `Moderately related shown at .30` = glue("{pct(moderate_k)} ({pct(moderate_full)})")) %>%
+  kable(align = "lrrrrr", caption = "Accuracy (correlation between displayed and empirical values) and share of related scales shown at a displayed value of .30, for queries with few items. Values in parentheses are for the full scales the items were drawn from.")
+```
+
+Short queries cost little in the pilot study: even with single items,
+`r round(ql("pilot", 1, "strong_k") * 100)`% of the strongly related scales were shown at .30. In the validation study
+they cost more. With a single item, accuracy dropped from `r pct(ql("validation", 1, "accuracy_full"))`
+to `r pct(ql("validation", 1, "accuracy_k"))`, and `r round(ql("validation", 1, "strong_k") * 10)` of 10
+strongly related scales were shown at .30 instead of `r round(ql("validation", 1, "strong_full") * 10)`.
+Three items brought accuracy close to that of the full scales (`r pct(ql("validation", 3, "accuracy_k"))`
+vs `r pct(ql("validation", 3, "accuracy_full"))`), but still showed fewer strongly related scales at .30
+(`r pct(ql("validation", 3, "strong_k"))` vs `r pct(ql("validation", 3, "strong_full"))`). The rows for
+three and five items rest on fewer scales, because only longer scales could be shortened that far.
+
+# Unmarked reverse-keyed items
+
+```{r unmarked, cache = TRUE}
+set.seed(20260930)
+shares <- c(0, .25, .50, .75, 1)
+unmarked <- imap_dfr(studies, function(s, study) {
+  used <- unique(c(s$pairs$scale_a, s$pairs$scale_b))
+  memberships <- imap_dfr(s$reverse[used], ~ tibble(scale = .y, item = .x))
+  n_memberships <- nrow(memberships)
+  n_scales_reverse <- n_distinct(memberships$scale)
+  map_dfr(shares, function(share) {
+    map_dfr(seq_len(if (share %in% c(0, 1)) 1 else 50), function(draw) {
+      kept <- memberships[sample(nrow(memberships), round((1 - share) * nrow(memberships))), ]
+      reverse <- map(set_names(used), ~ kept$item[kept$scale == .x])
+      displayed <- displayed_values(s, reverse)
+      shown <- sensitivity(s$pairs$empirical_r, s$pairs$empirical_r_se, displayed, .30, c(.50, .70), ndraws = 200)
+      tibble(study, share, draw, accuracy = cor(displayed, s$pairs$empirical_r),
+             strong = shown$share[shown$t == .70], moderate = shown$share[shown$t == .50])
+    })
+  }) %>% mutate(memberships = n_memberships, scales_with_reverse = n_scales_reverse)
+})
+unmarked_summary <- unmarked %>% group_by(study, share, memberships, scales_with_reverse) %>%
+  summarise(across(c(accuracy, strong, moderate), median), .groups = "drop")
+um <- function(st, sh, col) unmarked_summary[[col]][unmarked_summary$study == st & unmarked_summary$share == sh]
+```
+
+The engine can reverse only the items it knows to be reverse-keyed. Users may forget to mark them
+with "(R)", and some sources in the database record no keying at all, so their reverse-keyed items
+are pooled as if they were positively keyed. To see what this costs, we treated a random share of the
+reverse-keyed items as positively keyed (none, a quarter, half, three quarters or all of them; 50
+random draws for each intermediate share), pooled the scale vectors again, and compared the new
+displayed values with the same empirical correlations as before. In the pilot study,
+`r um("pilot", 0, "memberships")` item placements in `r um("pilot", 0, "scales_with_reverse")` scales
+are reverse-keyed; in the validation study, `r um("validation", 0, "memberships")` in
+`r um("validation", 0, "scales_with_reverse")` scales.
+
+```{r unmarked-table}
+unmarked_summary %>%
+  arrange(study, share) %>%
+  transmute(Study = str_to_title(study), `Reverse-keyed items unmarked` = paste0(share * 100, "%"),
+            Accuracy = pct(accuracy), `Strongly related shown at .30` = pct(strong),
+            `Moderately related shown at .30` = pct(moderate)) %>%
+  kable(align = "llrrr", caption = "Accuracy and share of related scales shown at a displayed value of .30 when a share of the reverse-keyed items is treated as positively keyed (median over random draws).")
+```
+
+Accuracy fell steadily with the share of unmarked items. With half of them unmarked, it dropped from
+`r pct(um("validation", 0, "accuracy"))` to `r pct(um("validation", .5, "accuracy"))` in the
+validation study and from `r pct(um("pilot", 0, "accuracy"))` to `r pct(um("pilot", .5, "accuracy"))`
+in the pilot study, and the share of strongly related scales shown at .30 in the validation study
+fell from `r round(um("validation", 0, "strong") * 100)`% to `r round(um("validation", .5, "strong") * 100)`%.
+With all of them unmarked, accuracy was `r pct(um("validation", 1, "accuracy"))` and
+`r pct(um("pilot", 1, "accuracy"))`. The pilot study loses more, as more of its items are
+reverse-keyed. How much a single search loses depends on how many reverse-keyed items the query and
+the database scale contain.
+
+# Session information
+
+```{r session}
+sessionInfo()
+```

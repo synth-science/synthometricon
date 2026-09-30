@@ -1,0 +1,22 @@
+# Item-text corpora and licensed PsycTests tables stay local (see README.md).
+data/restricted/
+data/psyctests/
+data/raw-extractions-exploded.parquet
+data/semanticnet/items(in).csv
+data/semanticnet/items_clean.csv
+data/semanticnet/*_backup.csv
+data/semanticnet/psyc_name_variants.csv
+data/semanticnet/psyc_coverage_flags.csv
+data/semanticnet/app/
+larsen/larsen_data/
+# parquet is ignored repository-wide; listed here for clarity
+*.parquet
+# knit outputs and self-contained widgets (tens of MB)
+*.html
+*_files/
+*_cache/
+# self-contained widgets are tens of MB; PNGs are committed
+figures/*.html
+figures/*_files/
+# rendered supplementary note
+*.docx

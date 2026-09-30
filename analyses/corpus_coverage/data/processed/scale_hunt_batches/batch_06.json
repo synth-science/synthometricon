@@ -1,0 +1,191 @@
+[
+ {
+  "doi": "10.1037/t04471-000",
+  "name": "obsessive compulsive drinking scale",
+  "acronym": "OCDS",
+  "alt_names": "",
+  "slug": "obsessive-compulsive-drinking-scale",
+  "websites": "",
+  "usage_count": 464
+ },
+ {
+  "doi": "10.1037/t67378-000",
+  "name": "pain disability index",
+  "acronym": "PDI",
+  "alt_names": "",
+  "slug": "pain-disability-index",
+  "websites": "",
+  "usage_count": 462
+ },
+ {
+  "doi": "10.1037/t11872-000",
+  "name": "student-teacher relationship scale",
+  "acronym": "STRS",
+  "alt_names": "",
+  "slug": "student-teacher-relationship-scale",
+  "websites": "https://education.virginia.edu/sites/default/files/uploads/resourceLibrary/STRS.pdf | https://education.virginia.edu/faculty-research/centers-labs-projects/castl/measures-developed-robert-c-pianta-phd",
+  "usage_count": 456
+ },
+ {
+  "doi": "10.1037/t00534-000",
+  "name": "spiritual well-being scale",
+  "acronym": "SWBS",
+  "alt_names": "",
+  "slug": "spiritual-well-being-scale",
+  "websites": "http://www.lifeadvance.com/",
+  "usage_count": 452
+ },
+ {
+  "doi": "10.1037/t04973-000",
+  "name": "davidson trauma scale",
+  "acronym": "DTS™",
+  "alt_names": "",
+  "slug": "davidson-trauma-scale",
+  "websites": "http://www.mhs.com/dts",
+  "usage_count": 445
+ },
+ {
+  "doi": "10.1037/t01311-000",
+  "name": "parenting sense of competence scale",
+  "acronym": "PSOC",
+  "alt_names": "",
+  "slug": "parenting-sense-of-competence-scale",
+  "websites": "",
+  "usage_count": 443
+ },
+ {
+  "doi": "10.1037/t05003-000",
+  "name": "social functioning scale",
+  "acronym": "SFS",
+  "alt_names": "",
+  "slug": "social-functioning-scale",
+  "websites": "",
+  "usage_count": 443
+ },
+ {
+  "doi": "10.1037/t03774-000",
+  "name": "minnesota nicotine withdrawal scale",
+  "acronym": "MNWS",
+  "alt_names": "",
+  "slug": "minnesota-nicotine-withdrawal-scale",
+  "websites": "",
+  "usage_count": 441
+ },
+ {
+  "doi": "10.1037/t06501-000",
+  "name": "ways of coping questionnaire",
+  "acronym": "WAYS",
+  "alt_names": "",
+  "slug": "ways-of-coping-questionnaire",
+  "websites": "http://www.mindgarden.com/",
+  "usage_count": 438
+ },
+ {
+  "doi": "10.1037/t60094-000",
+  "name": "panic disorder severity scale",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "panic-disorder-severity-scale",
+  "websites": "",
+  "usage_count": 438
+ },
+ {
+  "doi": "10.1037/t28576-000",
+  "name": "cohen-mansfield agitation inventory",
+  "acronym": "CMAI",
+  "alt_names": "Cohen-Mansfield Agitation Inventory--Community Form | Cohen-Mansfield Agitation Inventory--Relative Form | Cohen-Mansfield Agitation Inventory--Short Form | Cohen-Mansfield Agitation Inventory--Disrup",
+  "slug": "cohen-mansfield-agitation-inventory",
+  "websites": "",
+  "usage_count": 437
+ },
+ {
+  "doi": "10.1037/t15175-000",
+  "name": "wechsler memory scale--fourth edition",
+  "acronym": "WMS-IV",
+  "alt_names": "",
+  "slug": "wechsler-memory-scale-fourth-edition",
+  "websites": "http://pearsonassessments.com/HAIWEB/Cultures/en-us/Productdetail.htm?Pid=015-8895-800&Mode=summary",
+  "usage_count": 430
+ },
+ {
+  "doi": "10.1037/t08945-000",
+  "name": "classroom assessment scoring system",
+  "acronym": "CLASS",
+  "alt_names": "",
+  "slug": "classroom-assessment-scoring-system",
+  "websites": "",
+  "usage_count": 429
+ },
+ {
+  "doi": "10.1037/t30592-000",
+  "name": "mental health continuum--short form",
+  "acronym": "MHC-SF",
+  "alt_names": "",
+  "slug": "mental-health-continuum-short-form",
+  "websites": "",
+  "usage_count": 424
+ },
+ {
+  "doi": "10.1037/t52053-000",
+  "name": "comprehensive assessment of at-risk mental states",
+  "acronym": "CAARMS",
+  "alt_names": "",
+  "slug": "comprehensive-assessment-of-at-risk-mental-states",
+  "websites": "",
+  "usage_count": 415
+ },
+ {
+  "doi": "10.1037/t15271-000",
+  "name": "multidimensional fatigue inventory",
+  "acronym": "MFI",
+  "alt_names": "",
+  "slug": "multidimensional-fatigue-inventory",
+  "websites": "",
+  "usage_count": 414
+ },
+ {
+  "doi": "10.1037/t08132-000",
+  "name": "emotion regulation checklist",
+  "acronym": null,
+  "alt_names": "",
+  "slug": "emotion-regulation-checklist",
+  "websites": "",
+  "usage_count": 408
+ },
+ {
+  "doi": "10.1037/t05500-000",
+  "name": "frost multidimensional perfectionism scale",
+  "acronym": "FMPS",
+  "alt_names": "",
+  "slug": "frost-multidimensional-perfectionism-scale",
+  "websites": "",
+  "usage_count": 407
+ },
+ {
+  "doi": "10.1037/t12205-000",
+  "name": "clinical interview schedule--revised",
+  "acronym": "CIS-R",
+  "alt_names": "",
+  "slug": "clinical-interview-schedule-revised",
+  "websites": "",
+  "usage_count": 407
+ },
+ {
+  "doi": "10.1037/t04993-000",
+  "name": "hare psychopathy checklist-revised",
+  "acronym": "PCL-R™: 2nd Ed.",
+  "alt_names": "",
+  "slug": "hare-psychopathy-checklist-revised",
+  "websites": "http://www.mhs.com/Default.aspx",
+  "usage_count": 405
+ },
+ {
+  "doi": "10.1037/t08755-000",
+  "name": "multidimensional body-self relations questionnaire",
+  "acronym": "MBSRQ",
+  "alt_names": "Body-Self Relations Questionnaire",
+  "slug": "multidimensional-body-self-relations-questionnaire",
+  "websites": "http://www.body-images.com/assessments/mbsrq.html",
+  "usage_count": 405
+ }
+]
