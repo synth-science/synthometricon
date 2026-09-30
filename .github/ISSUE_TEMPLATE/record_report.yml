@@ -1,0 +1,120 @@
+name: "Data Donation"
+description: "Contribute a questionnaire, scale, survey or test that is missing from the Synthometricon."
+title: "Donation: [Instrument Name]"
+labels: ["data-donation", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping the Synthometricon grow! One issue per instrument, please! A translation or a short form counts as its own instrument.
+
+        **This issue is public.** Items are only used to compute similarity estimates; the Synthometricon never displays or redistributes them. If the items are copyrighted or you would rather not post them here, choose *"Send privately"* below and we will reply with a private upload link. Only the metadata then appears on this page.
+
+  - type: markdown
+    attributes:
+      value: "### Instrument"
+
+  - type: input
+    id: record_title
+    attributes:
+      label: Instrument name
+      description: Full name, with the abbreviation if there is one.
+      placeholder: "e.g., Revised Attitudes Towards Horses Scale (R-ATHS)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference
+      description: The publication that introduces or validates the instrument (APA style if you can), or where it is documented.
+      placeholder: "Author, A., & Author, B. (2023). Title. Journal, 1(2), 3–4. https://doi.org/..."
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: doi
+    attributes:
+      label: DOI
+      description: The instrument's own DOI (e.g., PsycTests), or else the DOI of the reference above.
+      placeholder: "10.1037/t12345-000"
+
+  - type: input
+    id: year
+    attributes:
+      label: Year
+      placeholder: "2023"
+
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: The language of the items you are donating.
+      placeholder: "English"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Short form, revision, translation/adaptation; anything that distinguishes it from other versions.
+      placeholder: "e.g., 10-item short form; German adaptation"
+
+  - type: markdown
+    attributes:
+      value: "### Items"
+
+  - type: dropdown
+    id: items_delivery
+    attributes:
+      label: How will you share the items?
+      options:
+        - Pasted below (publicly visible)
+        - Attached below as a file (publicly visible)
+        - Send privately (we'll reply with an upload link)
+    validations:
+      required: true
+
+  - type: textarea
+    id: items
+    attributes:
+      label: Scales and items
+      description: |
+        Leave this empty if you share the items privately or not at all.
+        Scales as headings (`#` scale, `##` subscale, …), one item per line, `(R)` after reverse-keyed items. A spreadsheet or PDF works too: drag it into this box.
+      placeholder: |
+        # Extraversion
+        ## Sociability
+        - I enjoy going to parties.
+        - I prefer to spend my evenings alone. (R)
+        ## Assertiveness
+        - I take charge in group discussions.
+
+  - type: dropdown
+    id: rights
+    attributes:
+      label: Usage rights
+      description: What is the licence of the items? If unsure, pick the last option and we will check.
+      options:
+        - Openly licensed or public domain (e.g., CC BY, IPIP)
+        - Copyrighted; I am the author / rights holder
+        - Copyrighted; the rights holder permits this donation
+        - I am not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Response format, scoring notes, known issues, related instruments; whatever helps.
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Consent
+      options:
+        - label: I may share these items, and I agree that they are included in the Synthometricon corpus to compute similarity estimates. They will not be displayed or redistributed.
+          required: true
