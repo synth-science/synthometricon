@@ -1,6 +1,6 @@
 # Synthometricon
 
-The Synthometricon ("dictionary of measured synthetics"; formally known as **SynthNet**) is a search engine designed to help researchers, practitioners, and students discover scales from a database of more than 28,000 questionnaires, surveys, and tests.
+The Synthometricon ("dictionary of measured synthetics"; formerly known as **SynthNet**) is a search engine designed to help researchers, practitioners, and students discover scales from a database of more than 28,000 questionnaires, surveys, and tests.
 
 This repository contains the data extraction pipeline (which extracts structured items, scales, and metadata from PDF test manuals) and the processing pipeline (which combines them with other sources into an analysis-ready corpus), as well as various descriptive analyses. It also contains code to publish the resulting encrypted dataset on Hugging Face.
 
