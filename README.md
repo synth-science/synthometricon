@@ -10,6 +10,8 @@ The web app is currently hosted on Hugging Face Spaces at: [https://huggingface.
 
 This is a read-only snapshot of the pipeline code. Source PDFs, extraction outputs, test fixtures and evaluation logs are not included because they contain copyright-protected material. The published dataset is encrypted; see [`publish/dataset_card.md`](publish/dataset_card.md) for how to request access.
 
+Preprints of the accompanying manuscript are in [`preprint/`](preprint/README.md).
+
 ## Setup
 
 ```bash
