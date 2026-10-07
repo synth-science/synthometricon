@@ -7,6 +7,7 @@ Stage overview and carried-column details: `architecture-assemble.md` (`encode.p
 - Each entry in the `encode:` config block is a `{name, path}` mapping. `name` is sanitized into a column segment: lowercased, and every run of non-alphanumeric characters collapsed to `_`.
 - `item_models` encode `item_item_text` into `item_embedding_{name}`.
 - `scale_models` encode `scale_name` into `scale_embedding_{name}` and `meta_title_raw` into `instrument_embedding_{name}`.
+- Parent nodes (e.g. a domain whose items all sit in its facets) have no row of their own, so their names exist only in `scale_name_path`. `scale_models` encode those names together with the row names, and encode writes every distinct scale-node name with its vector to a sidecar next to the embedded parquet: `<embedded>.scale-names.parquet` (`scale_name` plus one `scale_embedding_{name}` column per scale model; `encode.scale_names_path`). Pool reads it.
 - Each unique non-blank text is encoded once. Null or blank source text gives a null cell.
 - Only one model is held in memory at a time.
 
@@ -39,10 +40,14 @@ The full rationale and robustness checks are in `reverse-keyed-pooling.md`.
 
 ### Scale pooling
 
+Every named scale node has an own-name vector: the `scale_embedding_{m}` cell of its direct row, or, for a parent-only node, the vector of its name from the scale-name sidecar. That vector is the node's `scale_embedding_{m}`.
+
 `scale_pooled_{m}` is the unweighted mean of two kinds of vector, each counted once:
 
-- the embedding of each distinct scale in scope, for scales that have direct rows (parent-only nodes have no embedding of their own);
+- for a scale row, the own-name vector of every node in its subtree: the node itself and all its descendants (intermediate and leaf); for an instrument row, the own-name vectors of the scales that hold items directly (parent-only nodes are left out, because their names often repeat the title);
 - the document's `instrument_embedding_{m}` from the same model, if it is not null.
+
+A leaf scale thus averages its own name and the instrument title; a domain above its facets averages its own name, the facet names and the title. Unnamed nodes contribute nothing. Without the sidecar (an embedded parquet from before this change), pool logs a WARNING and parent-only nodes have no own-name vector, as before.
 
 ## Embedding search (`assemble.search`)
 

@@ -207,8 +207,8 @@ dimensions and null counts of the current release.
 | --- | --- |
 | `item_pooled_surveybot3000` | **The main vector.** A keying-aware centroid of the embeddings of every item pooled into this row, encoded with `surveybot3000`. See [How items are pooled](#how-items-are-pooled). Do not re-normalise it — its length is informative. |
 | `keying_disagreements_surveybot3000` | Count of items in this row whose keyed vector points *against* the keyed average of the row's other items — the embedding analogue of a negative corrected item–total correlation. A review pointer, not a defect count; see the caveat below. |
-| `scale_pooled_all_minilm_l6_v2` | Centroid of the *name* embeddings in this row's subtree: every constituent scale name plus the instrument title, encoded with `all-MiniLM-L6-v2` and averaged unweighted. A label-based counterpart to `item_pooled_*`, useful when you care what a scale is *called* rather than what it asks. |
-| `scale_embedding_all_minilm_l6_v2` | Embedding of this node's own `scale_name` text alone. **Null on instrument rows, and null on any node that carries no name of its own.** |
+| `scale_pooled_all_minilm_l6_v2` | Centroid of the *name* embeddings in this row's subtree, each encoded with `all-MiniLM-L6-v2` and averaged unweighted: on scale rows the row's own scale name, every constituent scale name (intermediate levels included) and the instrument title; on instrument rows the names of the scales that hold items and the instrument title. A label-based counterpart to `item_pooled_*`, useful when you care what a scale is *called* rather than what it asks. |
+| `scale_embedding_all_minilm_l6_v2` | Embedding of this node's own `scale_name` text alone, also for parent nodes whose items all sit in subscales. **Null on instrument rows, and null on any node that carries no name of its own.** |
 | `instrument_embedding_all_minilm_l6_v2` | Embedding of `meta_title_raw`, the instrument title. **Null on all scale rows** — it is populated only where `is_instrument` is `True`. |
 
 **Nullability is not incidental.** `np.stack(df.scale_embedding_all_minilm_l6_v2)`

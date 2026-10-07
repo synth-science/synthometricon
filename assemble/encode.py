@@ -17,6 +17,19 @@ from .combine import write_parquet
 
 DEFAULT_BATCH_SIZE = 256
 
+# Sidecar of the embedded parquet: one row per distinct scale-node name (parents included),
+# one vector column per scale model. Pool reads it for nodes without direct rows.
+SCALE_NAMES_SUFFIX = ".scale-names.parquet"
+SCALE_NAME_COL = "scale_name"
+SCALE_NAME_PATH_COL = "scale_name_path"
+
+
+def scale_names_path(embedded_path) -> Path:
+    """Sidecar path next to the embedded parquet (``x.parquet`` -> ``x.scale-names.parquet``)."""
+    p = Path(embedded_path)
+    stem = p.name[: -len(p.suffix)] if p.suffix else p.name
+    return p.with_name(stem + SCALE_NAMES_SUFFIX)
+
 
 def _model_name(name: str) -> str:
     """Sanitized column-name segment from a configured model name."""
@@ -51,15 +64,36 @@ def _unique_texts(series: pd.Series) -> list[str]:
     return sorted({t for t in texts if isinstance(t, str) and t.strip()})
 
 
-def encode_column(series: pd.Series, model, batch_size: int) -> pd.Series:
-    """Encode each unique text once; null/blank texts map to None."""
-    uniq = _unique_texts(series)
+def path_names(df: pd.DataFrame) -> list[str]:
+    """Distinct non-blank names anywhere in ``scale_name_path`` (parent nodes included)."""
+    if SCALE_NAME_PATH_COL not in df.columns:
+        return []
+    names: set[str] = set()
+    for path in df[SCALE_NAME_PATH_COL].dropna():
+        names.update(t for t in path if isinstance(t, str) and t.strip())
+    return sorted(names)
+
+
+def encode_texts(texts, model, batch_size: int) -> dict[str, np.ndarray]:
+    """{text: float32 vector}, each distinct non-blank text encoded once (one model call)."""
+    uniq = sorted({t for t in texts if isinstance(t, str) and t.strip()})
     if not uniq:
-        return pd.Series([None] * len(series), index=series.index, dtype=object)
+        return {}
     vectors = model.encode(uniq, batch_size=batch_size,
                            convert_to_numpy=True, show_progress_bar=True)
-    lookup = {t: v.astype(np.float32) for t, v in zip(uniq, vectors)}
+    return {t: v.astype(np.float32) for t, v in zip(uniq, vectors)}
+
+
+def map_texts(series: pd.Series, lookup: dict) -> pd.Series:
+    """Vector per row from ``lookup``; null/blank or unknown texts map to None."""
+    if not lookup:
+        return pd.Series([None] * len(series), index=series.index, dtype=object)
     return series.map(lambda t: lookup.get(t) if isinstance(t, str) else None)
+
+
+def encode_column(series: pd.Series, model, batch_size: int) -> pd.Series:
+    """Encode each unique text once; null/blank texts map to None."""
+    return map_texts(series, encode_texts(_unique_texts(series), model, batch_size))
 
 
 def run(cfg: dict, *, report_only: bool = False,
@@ -90,20 +124,32 @@ def run(cfg: dict, *, report_only: bool = False,
         sys.exit(f"source columns missing from input: {', '.join(sorted(missing))}")
 
     models: dict[str, object] = {}
+    # Parent nodes have no row of their own, so their names live only in
+    # scale_name_path; they are encoded with the row names and go to the sidecar.
+    extra_names = path_names(df)
+    name_lookups: dict[str, dict] = {}  # scale_embedding_{m} -> {name: vector}
     for path, src, col in targets:
         series = df[src]
-        n_uniq = len(_unique_texts(series))
+        texts = _unique_texts(series)
         report.append(f"--- {col} ---")
         report.append(f"model: {path}")
-        report.append(f"source: {src}, {n_uniq:,} unique texts, "
+        report.append(f"source: {src}, {len(texts):,} unique texts, "
                       f"{int(series.isna().sum()):,} null rows")
+        if src == SCALE_NAME_COL:
+            only_path = sorted(set(extra_names) - set(texts))
+            texts = sorted(set(texts) | set(extra_names))
+            report.append(f"plus {len(only_path):,} names that occur only in "
+                          f"{SCALE_NAME_PATH_COL} (parent nodes)")
         if report_only:
             continue
         if path not in models:
             from sentence_transformers import SentenceTransformer
             models.clear()  # free the previous model before loading the next
             models[path] = SentenceTransformer(str(path))
-        df[col] = encode_column(series, models[path], batch_size)
+        lookup = encode_texts(texts, models[path], batch_size)
+        df[col] = map_texts(series, lookup)
+        if src == SCALE_NAME_COL:
+            name_lookups[col] = lookup
         dim = next((len(v) for v in df[col] if v is not None), 0)
         report.append(f"dim: {dim}, {int(df[col].isna().sum()):,} null embeddings")
     models.clear()
@@ -113,7 +159,21 @@ def run(cfg: dict, *, report_only: bool = False,
     if not report_only:
         write_parquet(df, out)
         report.append(f"wrote {out}")
+        if name_lookups:
+            sidecar = scale_names_path(out)
+            write_parquet(scale_names_frame(name_lookups), sidecar)
+            report.append(f"wrote {sidecar} "
+                          f"({max(len(v) for v in name_lookups.values()):,} names)")
     return report
+
+
+def scale_names_frame(name_lookups: dict[str, dict]) -> pd.DataFrame:
+    """One row per distinct scale-node name, one vector column per scale model."""
+    texts = sorted(set().union(*name_lookups.values()))
+    frame = {SCALE_NAME_COL: texts}
+    for col, lookup in name_lookups.items():
+        frame[col] = [lookup.get(t) for t in texts]
+    return pd.DataFrame(frame)
 
 
 def main() -> None:

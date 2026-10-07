@@ -18,7 +18,8 @@ Depends on `items` + `scales`. `build_user_prompt` renders a numbered item list 
 
 Resolver semantics:
 - An item mapped to several scales is duplicated under each, with per-occurrence `reverse_coded`.
-- Mappings to unknown item/scale ids are silently dropped.
+- Mappings to unknown item ids are dropped. Mappings to scale ids that are not in the scale tree are dropped too, but an item whose every mapping points to such a scale goes to `orphan_items` (the model judged it scorable) instead of vanishing; this is logged. Before this fix, 77 items in 8 documents of the Sep 2026 corpus were lost this way.
+- A repeated `(item_id, scale_id)` pair is placed once. The first-emitted mapping wins, so a later copy with a different `reverse_coded` is ignored and logged as a conflict. First-emitted is what `assemble/pool.py` already used (its per-group `seen` set keeps the first copy), so pooled vectors do not change; only the surplus rows go (≈129 placements, 3 with conflicting keys, in the Sep 2026 corpus).
 - Unmapped items go to `orphan_items` if listed in `orphan_item_ids` (psychometric, no scale — e.g. stand-alone single items, draft/pilot item pools), otherwise `unscaled_items` (demographic/administrative; not scored).
 - `Instrument.meta` is never set here; see `compose_extraction_output` / `apply_meta_to_instrument` in `extraction/models/compose.py`.
 

@@ -240,6 +240,18 @@ def test_run_writes_the_release_directory(tmp_path):
     assert key.read_bytes().strip().decode() not in readme
 
 
+def test_run_mirrors_only_the_descriptives_to_reports_dir(tmp_path):
+    cfg = cfg_for(tmp_path)
+    cfg["data"]["reports_dir"] = str(tmp_path / "reports")
+    tiny_pooled().to_parquet(cfg["data"]["assemble"]["pooled"], index=False)
+    step.run(cfg, report_only=True)
+    assert not (tmp_path / "reports").exists()
+    step.run(cfg)
+    md = paths.report_path(cfg["data"]["publish"])
+    assert [p.name for p in (tmp_path / "reports").iterdir()] == [md.name]
+    assert (tmp_path / "reports" / md.name).read_bytes() == md.read_bytes()
+
+
 def test_read_release_projects_columns(tmp_path):
     cfg = cfg_for(tmp_path)
     tiny_pooled().to_parquet(cfg["data"]["assemble"]["pooled"], index=False)

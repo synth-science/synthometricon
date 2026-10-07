@@ -100,6 +100,8 @@ Auto-built fixtures are unreviewed: `--validity` against them passes tautologica
 - **pending** — always run.
 - **failed** — skipped by default (a deterministically failing document is not reprocessed every run); re-attempted only under `--retry-failed` or when `--retry-error` (regex) matches the stored error, and only while `{name}_extractor_attempts < --max-attempts` (else **exhausted**).
 
+An unreachable inference server (`openai.APIConnectionError`, connection refused/reset; timeouts excluded) is not a document failure: `run_live` records nothing for that cell, leaves its attempt counter alone, keeps the extractors that already succeeded on the document, and stops the run (`aborted` in the result, exit code 1). Before this, one sweep against a dead server marked 49 large documents as failed within minutes.
+
 Cached cells seed the context so selected extractors can satisfy dependencies. A PDF render failure is recorded against every scheduled extractor. On failure the content and usage cells are nulled and the error string saved; the parquet is rewritten atomically after every document and `extraction_output` is recomposed.
 
 ## Storage

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -10,6 +11,8 @@ from ._schema import inline_schema
 from .items import Item, Items
 from .meta import Meta
 from .scales import Scale, Survey
+
+logger = logging.getLogger(__name__)
 
 
 # Wire models (LLM output).
@@ -162,17 +165,58 @@ def resolve_instrument(
     """Join wire mappings against upstream items + scales into an ``Instrument`` tree.
 
     Multi-scale items are duplicated per scale; unmapped items go to ``orphan_items``
-    if listed in ``orphan_item_ids``, else ``unscaled_items``. Unknown ids are dropped.
+    if listed in ``orphan_item_ids``, else ``unscaled_items``. Unknown item ids are dropped.
+    Mappings to a scale id that is not in the tree are dropped, and an item whose every
+    mapping points to such a scale goes to ``orphan_items`` (the model judged it scorable),
+    instead of vanishing. A repeated ``(item_id, scale_id)`` pair keeps its first-emitted
+    mapping; a later copy with a different ``reverse_coded`` is logged as a conflict.
     """
     item_by_id: dict[int, Item] = {
         item.id: item for item in items.items if item.id is not None
     }
 
+    known_scale_ids: set[int] = set()
+
+    def collect(scale: Scale) -> None:
+        known_scale_ids.add(scale.id)
+        for s in scale.subscales or []:
+            collect(s)
+
+    for s in scales.scales:
+        collect(s)
+
     mappings_by_scale: dict[int, list[ItemScaleMapping]] = {}
     mapped_item_ids: set[int] = set()
+    dangling_item_ids: set[int] = set()  # mapped, but only to scale ids not in the tree
+    first_mapping: dict[tuple[int, int], ItemScaleMapping] = {}
+    n_duplicates = n_conflicts = 0
     for m in mappings.mappings:
+        if m.scale_id not in known_scale_ids:
+            dangling_item_ids.add(m.item_id)
+            continue
+        key = (m.item_id, m.scale_id)
+        first = first_mapping.get(key)
+        if first is not None:
+            n_duplicates += 1
+            if bool(first.reverse_coded) != bool(m.reverse_coded):
+                n_conflicts += 1
+                logger.warning(
+                    "resolve_instrument: conflicting reverse_coded for item %s in scale %s; "
+                    "kept the first mapping (reverse_coded=%s)",
+                    m.item_id, m.scale_id, bool(first.reverse_coded))
+            continue
+        first_mapping[key] = m
         mappings_by_scale.setdefault(m.scale_id, []).append(m)
         mapped_item_ids.add(m.item_id)
+    dangling_item_ids -= mapped_item_ids
+    dangling_item_ids &= set(item_by_id)
+    if n_duplicates:
+        logger.warning("resolve_instrument: dropped %d repeated (item, scale) mapping(s), "
+                       "%d with conflicting reverse_coded", n_duplicates, n_conflicts)
+    if dangling_item_ids:
+        logger.warning("resolve_instrument: %d item(s) mapped only to scale ids not in the "
+                       "scale tree; kept as orphan items: %s",
+                       len(dangling_item_ids), sorted(dangling_item_ids))
 
     def build(scale: Scale) -> ScaleNode:
         scaled_items: list[ScaledItem] = []
@@ -201,7 +245,8 @@ def resolve_instrument(
         )
 
     resolved_scales = [build(s) for s in scales.scales]
-    orphan_ids = {i for i in (mappings.orphan_item_ids or []) if i not in mapped_item_ids}
+    orphan_ids = ({i for i in (mappings.orphan_item_ids or []) if i not in mapped_item_ids}
+                  | dangling_item_ids)
     unmapped = [item for item in items.items if item.id not in mapped_item_ids]
     orphan_items = [it for it in unmapped if it.id in orphan_ids]
     unscaled_items = [it for it in unmapped if it.id not in orphan_ids]

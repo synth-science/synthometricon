@@ -10,11 +10,14 @@ import pytest
 
 from extraction.extractors import REGISTRY
 from extraction.orchestrator import build_dependency_context, run_extractor
-from extraction.config import load_test_cases
+from extraction.config import load_config, load_test_cases, resolve_fixtures_dir
 
+ROOT = Path(__file__).parent.parent
 TEST_FILES_YAML = Path(__file__).parent / "test_files.yaml"
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-_TEST_CASES = load_test_cases(str(TEST_FILES_YAML))
+# Same fixtures as the CLI (config.yaml testing.fixtures_dir: the human coding), so the
+# dependency context of instrument/meta runs is the human-validated item and scale set.
+FIXTURES_DIR = resolve_fixtures_dir(load_config(str(ROOT / "config.yaml")), ROOT)
+_TEST_CASES = load_test_cases(str(TEST_FILES_YAML), fixtures_dir=FIXTURES_DIR)
 
 _params = [
     pytest.param(name, Path(case["path"]).stem, id=f"{name}-{Path(case['path']).stem}")
@@ -24,7 +27,7 @@ _params = [
 
 
 @pytest.mark.parametrize("extractor_name,case_stem", _params)
-def test_reliability(extractor_name, case_stem, config, test_cases):
+def test_reliability(extractor_name, case_stem, config, test_cases, fixtures_dir):
     case = next(c for c in test_cases if Path(c["path"]).stem == case_stem)
     extractor = REGISTRY[extractor_name]
     testing_cfg = config.get("testing", {})
@@ -42,7 +45,7 @@ def test_reliability(extractor_name, case_stem, config, test_cases):
                 registry=REGISTRY,
                 config=config,
                 case=case,
-                fixtures_dir=str(FIXTURES_DIR),
+                fixtures_dir=fixtures_dir,
             )
         except Exception as exc:
             pytest.fail(f"dependency context build failed: {exc}")

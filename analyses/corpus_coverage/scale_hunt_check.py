@@ -14,6 +14,9 @@ import pdf_inspector as pi
 BASE = os.path.dirname(os.path.abspath(__file__))
 PDF_DIR = os.environ.get("SCALE_HUNT_PDF_DIR", os.path.join(BASE, "data/restricted/pdfs"))
 REPORT = os.path.join(BASE, "data/processed/scale_hunt_check_report.csv")
+# recorded target -> PsycTests DOI, shared with scale_hunt_assemble.R
+with open(os.path.join(BASE, "data/processed/scale_hunt_target_fixes.csv"), newline="") as f:
+    TARGET_FIXES = {r["recorded_target"]: r["psyctests_doi"] for r in csv.DictReader(f)}
 
 
 def norm(s):
@@ -62,17 +65,18 @@ def probe_variants(p):
 
 
 def check_extraction(e, target_doi=None):
+    target_doi = TARGET_FIXES.get(target_doi, target_doi)
     m = re.search(r"t(\d{5})-000", target_doi or "") or re.search(r"t(\d{5})-000", e.get("doi") or "")
     if not m:
-        return dict(accession="?", items=len(e.get("items") or []), matched=None, files=0,
-                    status="no_psyctests_doi")
+        return dict(accession="?", items=len(e.get("items") or []), checkable=None, matched=None,
+                    files=0, status="no_psyctests_doi")
     acc = "9999" + m.group(1)
     corpus, n_files = corpus_for(acc, e.get("saved_files"))
     n_items = len(e.get("items") or [])
     if not corpus:
-        return dict(accession=acc, items=n_items, matched=None, files=n_files,
+        return dict(accession=acc, items=n_items, checkable=None, matched=None, files=n_files,
                     status="no_source_text (scanned or nothing archived)")
-    matched = 0
+    matched = checkable = 0
     for it in e.get("items") or []:
         probes = []
         t = it.get("text") or ""
@@ -86,11 +90,16 @@ def check_extraction(e, target_doi=None):
         if it.get("admin_note"):
             probes.append(it["admin_note"][:120])
         probes = [p for p in probes if p and len(norm(p)) > 12]
-        ok = all(any(v in corpus for v in probe_variants(p)) for p in probes) if probes else False
-        matched += ok
-    frac = matched / n_items if n_items else 0
-    status = "ok" if frac >= 0.9 else "REVIEW"
-    return dict(accession=acc, items=n_items, matched=matched, files=n_files, status=status)
+        if not probes:  # e.g. single-word adjective items: too short to locate, not checkable
+            continue
+        checkable += 1
+        matched += all(any(v in corpus for v in probe_variants(p)) for p in probes)
+    if not checkable:
+        return dict(accession=acc, items=n_items, checkable=0, matched=0, files=n_files,
+                    status="no_checkable_items")
+    status = "ok" if matched / checkable >= 0.9 else "REVIEW"
+    return dict(accession=acc, items=n_items, checkable=checkable, matched=matched, files=n_files,
+                status=status)
 
 
 def main(paths):
@@ -105,19 +114,23 @@ def main(paths):
             if not e or not e.get("found"):
                 rows.append(dict(doi=(e or {}).get("doi", r.get("target", "?")),
                                  name=(e or {}).get("name", ""), accession="", items=0,
-                                 matched=None, files=0, status="not_found"))
+                                 checkable=None, matched=None, files=0, status="not_found"))
                 continue
-            res = check_extraction(e, r.get("target") if isinstance(r, dict) else None)
-            rows.append(dict(doi=r.get("target") or e.get("doi"), name=e.get("name", ""), **res))
+            target = r.get("target") if isinstance(r, dict) else None
+            res = check_extraction(e, target)
+            doi = TARGET_FIXES.get(target, target) or e.get("doi")
+            rows.append(dict(doi=doi, name=e.get("name", ""), **res))
     with open(REPORT, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     n_ok = sum(r["status"] == "ok" for r in rows)
-    print(f"{n_ok}/{len(rows)} scales fully confirmed; report: {REPORT}")
+    n_short = sum((r["items"] or 0) - (r["checkable"] or 0) for r in rows if r["checkable"] is not None)
+    print(f"{n_ok}/{len(rows)} scales fully confirmed; {n_short} items too short to check; report: {REPORT}")
     for r in rows:
         if r["status"] != "ok":
-            print(f"  {r['status']:>10s}  {r['name'] or r['doi']} ({r['matched']}/{r['items']} matched, {r['files']} source files)")
+            print(f"  {r['status']:>10s}  {r['name'] or r['doi']} ({r['matched']}/{r['checkable']} checkable items matched, "
+                  f"{r['items']} items, {r['files']} source files)")
 
 
 if __name__ == "__main__":

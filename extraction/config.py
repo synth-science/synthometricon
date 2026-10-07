@@ -4,12 +4,32 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 from pathlib import Path
 
 import yaml
 
 
 _GLOB_CHARS = set("*?[")
+
+# OS copy of a file, e.g. "doc (2).pdf" next to "doc.pdf" (Finder/Explorer duplicates).
+_OS_COPY = re.compile(r"^(?P<base>.+) \((?P<n>\d+)\)(?P<ext>\.pdf)$", re.IGNORECASE)
+
+DEFAULT_FIXTURES_DIR = "tests/validation-fixtures"
+
+
+def _drop_os_copies(paths: list[str]) -> list[str]:
+    """Drop ``<name> (N).pdf`` when ``<name>.pdf`` (any extension case) is in the list; log what was dropped."""
+    present = {p.lower() for p in paths}
+    kept, dropped = [], []
+    for p in paths:
+        m = _OS_COPY.match(os.path.basename(p))
+        original = (os.path.join(os.path.dirname(p), m["base"] + m["ext"]).lower() if m else None)
+        (dropped if original in present else kept).append(p)
+    if dropped:
+        print(f"input_files: skipped {len(dropped)} OS duplicate cop{'y' if len(dropped) == 1 else 'ies'} "
+              f"of PDFs already listed: {', '.join(os.path.basename(p) for p in dropped)}")
+    return kept
 
 
 def expand_input_files(entries: list[str]) -> list[str]:
@@ -37,7 +57,7 @@ def expand_input_files(entries: list[str]) -> list[str]:
                 _add(m)
         else:
             _add(entry)
-    return out
+    return _drop_os_copies(out)
 
 
 def load_config(path: str = "config.yaml") -> dict:
@@ -52,14 +72,23 @@ def load_config(path: str = "config.yaml") -> dict:
     return cfg
 
 
+def resolve_fixtures_dir(config: dict, root: str | Path | None = None) -> str:
+    """``testing.fixtures_dir`` (default: the human-coded ``tests/validation-fixtures``), resolved against ``root``."""
+    fixtures_dir = Path((config.get("testing") or {}).get("fixtures_dir") or DEFAULT_FIXTURES_DIR)
+    if root is not None and not fixtures_dir.is_absolute():
+        fixtures_dir = Path(root) / fixtures_dir
+    return str(fixtures_dir)
+
+
 def load_test_cases(
     path: str = "tests/test_files.yaml",
-    fixtures_dir: str = "tests/fixtures",
+    fixtures_dir: str = DEFAULT_FIXTURES_DIR,
 ) -> list[dict]:
     """Load enabled test cases as ``{"path", "enabled", "fixtures"}`` dicts.
 
     Fixtures come from ``<fixtures_dir>/<pdf-stem>.yaml`` (validity tags preserved);
-    a missing file yields ``{}``.
+    a missing file yields ``{}``. Pass ``resolve_fixtures_dir(config)`` so pytest and the
+    CLI read the same (human-coded) fixtures.
     """
     with open(path) as f:
         items = yaml.safe_load(f) or []

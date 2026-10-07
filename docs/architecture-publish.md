@@ -21,7 +21,7 @@ poetry run python -m publish --report-only --check-remote   # + live repo state
 | `<stem>.parquet` | release frame: parquet bytes, Fernet-encrypted (not readable as parquet) |
 | `<stem>.parquet.manifest.json` | manifest sidecar: shape, dtypes, counts, hashes, pipeline commit, key fingerprint |
 | `<stem>.key` | the Fernet key (only generated if none exists) — private |
-| `<stem>.md` | descriptives report (`assemble.report`), built in the same run so it cannot drift |
+| `<stem>.md` | descriptives report (`assemble.report`), built in the same run so it cannot drift; also copied to `data.reports_dir` |
 | `README.md` | build time, pipeline commit, shape, one line per file (fingerprint only) |
 
 ## Publish step (`publish/publish.py`)

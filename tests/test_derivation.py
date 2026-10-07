@@ -282,3 +282,49 @@ def test_resolve_instrument_no_orphan_field_defaults_to_unscaled():
     inst = resolve_instrument(mappings, items, survey)
     assert [it.id for it in inst.unscaled_items] == [2, 3, 4]
     assert inst.orphan_items == []
+
+
+def test_resolve_instrument_unknown_scale_id_routes_item_to_orphans():
+    """An item mapped only to a scale id outside the tree is kept as an orphan, not lost."""
+    items, survey = _resolver_inputs()
+    mappings = InstrumentMappings.model_validate({"mappings": [
+        {"item_id": 1, "scale_id": 1},
+        {"item_id": 2, "scale_id": 7},   # unknown scale only -> orphan
+        {"item_id": 3, "scale_id": 1},
+        {"item_id": 3, "scale_id": 9},   # unknown scale dropped, known one kept
+        {"item_id": 99, "scale_id": 7},  # unknown item: dropped entirely
+    ]})
+    inst = resolve_instrument(mappings, items, survey)
+    assert [si.item_id for si in inst.scales[0].items] == [1, 3]
+    assert [it.id for it in inst.orphan_items] == [2]
+    assert [it.id for it in inst.unscaled_items] == [4]
+
+
+def test_resolve_instrument_empty_scale_tree_keeps_mapped_items():
+    """With no scales, mapped items survive as orphans rather than emptying the document."""
+    items, _ = _resolver_inputs()
+    survey = Survey.model_validate({"scales": [], "has_unscaled_items": True})
+    mappings = InstrumentMappings.model_validate({"mappings": [
+        {"item_id": 1, "scale_id": 1}, {"item_id": 2, "scale_id": 1},
+    ]})
+    inst = resolve_instrument(mappings, items, survey)
+    assert inst.scales == []
+    assert [it.id for it in inst.orphan_items] == [1, 2]
+    assert [it.id for it in inst.unscaled_items] == [3, 4]
+
+
+def test_resolve_instrument_repeated_mapping_keeps_first(caplog):
+    """A repeated (item, scale) pair is placed once; the first-emitted keying wins and a conflict is logged."""
+    items, survey = _resolver_inputs()
+    mappings = InstrumentMappings.model_validate({"mappings": [
+        {"item_id": 1, "scale_id": 1, "reverse_coded": True},
+        {"item_id": 1, "scale_id": 1},
+        {"item_id": 2, "scale_id": 1},
+        {"item_id": 2, "scale_id": 1},
+    ]})
+    with caplog.at_level("WARNING"):
+        inst = resolve_instrument(mappings, items, survey)
+    placed = [(si.item_id, si.reverse_coded) for si in inst.scales[0].items]
+    assert placed == [(1, True), (2, False)]
+    assert "conflicting reverse_coded for item 1 in scale 1" in caplog.text
+    assert "dropped 2 repeated" in caplog.text

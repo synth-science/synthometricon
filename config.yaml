@@ -44,6 +44,7 @@ data:
     embedded: data/processed/synthometricon-corpus-embedded.parquet
     pooled: data/processed/synthometricon-corpus-embedded-pooled.parquet
   publish: data/published/synthometricon-corpus-published.parquet
+  reports_dir: null
 publish:
   key_env: SYNTHOMETRICON_RELEASE_KEY
   token_env: HF_TOKEN

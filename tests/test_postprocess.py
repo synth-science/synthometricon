@@ -14,6 +14,7 @@ from assemble.postprocess import (
     FLAGS,
     PDF_MATCH_NORM_MAX,
     PDF_TEXT_CHARS_MIN,
+    PDF_TEXT_CHARS_PER_PAGE_MIN,
     TELEMETRY_SUFFIXES,
     _observations,
     _public_year,
@@ -454,6 +455,17 @@ def test_flags_fire_on_mismatch(tmp_path):
     assert out["flag_scale_count_deviation"].tolist()[:3] == [False] * 3
 
 
+def test_count_flags_not_checkable_for_partial_sources(tmp_path):
+    """A partial source may hold only part of an instrument, so its counts are not compared."""
+    df = _flag_frame().drop(index=[3]).reset_index(drop=True)  # doc a: 2 items vs 3 recorded
+    df["corpus_source"] = ["semanticnet"] * 3 + ["apa-psyctests"] * 3
+    out = step_flags(df, _flag_ctx(tmp_path))
+    assert out["flag_item_count_deviation"].isna().tolist()[:3] == [True] * 3
+    assert out["flag_scale_count_deviation"].isna().tolist()[:3] == [True] * 3
+    assert out["record_item_count"].tolist()[:3] == [3, 3, 3]  # reference still joined
+    assert out["flag_item_count_deviation"].tolist()[3:5] == [False, False]
+
+
 def test_flags_zero_scale_count_not_checkable(tmp_path):
     df = pd.DataFrame({
         "path": ["d.pdf"],
@@ -518,6 +530,17 @@ def test_flag_item_text_deviation_thin_text_layer_is_not_checkable():
     assert not flag.iloc[2]
 
 
+def test_flag_item_text_deviation_uses_checkable_column():
+    """pdf_match's verdict on the text layer wins over the bare length rule."""
+    df = _flag_frame().iloc[:3].copy()
+    df["pdf_match_edit_distance_norm"] = pd.array([0.9, 0.9, 0.9], dtype="Float64")
+    df["pdf_text_chars"] = pd.array([5000, 5000, 5000], dtype="Int64")
+    df["pdf_text_checkable"] = pd.array([False, True, None], dtype="boolean")
+    flag = step_flags(df, ctx())["flag_item_text_deviation"]
+    assert flag.isna().tolist() == [True, False, False]
+    assert flag.iloc[1] and flag.iloc[2]
+
+
 def test_flag_item_translated():
     df = _flag_frame().iloc[:6].copy()
     df["item_language"] = ["en", "EN ", "de", "pt-br", None, ""]
@@ -579,6 +602,27 @@ def test_step_pdf_match():
     assert out["pdf_text_chars"].dtype.name == "Int64"
 
 
+def test_step_pdf_match_items_printed_as_images():
+    """A header/footer text layer on image-heavy pages cannot show the items."""
+    thin_body = "x" * (2 * (PDF_TEXT_CHARS_PER_PAGE_MIN - 1))  # 2 body pages
+    rich_body = "x" * (2 * PDF_TEXT_CHARS_PER_PAGE_MIN)
+    df = pd.DataFrame({
+        "path": ["scan.pdf", "text.pdf", "few_img.pdf", "short.pdf", "b.url"],
+        "item_item_text": ["item"] * 5,
+        "pdf_full_text": [thin_body, rich_body, thin_body, "x" * (PDF_TEXT_CHARS_MIN - 1), None],
+        # 3 pages = cover + 2 body pages; one logo per page
+        "meta_page_count": [3, 3, 3, 3, None],
+        "meta_image_count": [5, 5, 4, 3, None],
+    })
+    out = step_pdf_match(df, ctx())
+    chk = out["pdf_text_checkable"]
+    # image-only, enough text per page, too few extra images, thin, no PDF
+    assert chk.tolist()[:4] == [False, True, True, False]
+    assert pd.isna(chk.iloc[4])
+    assert str(chk.dtype) == "boolean"
+    assert not {"meta_page_count", "meta_image_count"} & set(out.columns)
+
+
 def test_step_pdf_match_missing_column():
     df = pd.DataFrame({"item_item_text": ["a"]})
     c = ctx()
@@ -586,6 +630,7 @@ def test_step_pdf_match_missing_column():
     assert out["pdf_match_edit_distance"].isna().all()
     assert out["pdf_match_edit_distance_norm"].isna().all()
     assert out["pdf_text_chars"].isna().all()
+    assert out["pdf_text_checkable"].isna().all()
     assert any("WARNING" in l for l in c.report)
 
 

@@ -11,48 +11,75 @@ source("lang_exclude.R")
 
 items <- read.csv("data/semanticnet/items_clean.csv") %>%
   mutate(scale = str_squish(tolower(scale)))
+# Scales whose name does not identify a published instrument are not matched at all:
+# - IPIP proxy keys (ipip.ori.org "new<Inventory>Key.htm", "BFASKeys.htm"): facet scales named
+#   after constructs of other inventories ("insight", "self-efficacy");
+# - survey archives (ARDA "thearda", the LISS panel): module labels such as "coping" or "drug use";
+# - scales whose best name match turned out to be a different instrument on manual review
+#   (data/processed/semanticnet_scale_exclusions.csv, with reasons).
+NOT_INSTRUMENT_RE <- regex("keys?\\.htm|^thearda$|^liss$", ignore_case = TRUE)
+excluded_scales <- union(
+  items %>% filter(str_detect(str_trim(origin), NOT_INSTRUMENT_RE)) %>% distinct(scale) %>% pull(scale),
+  read.csv("data/processed/semanticnet_scale_exclusions.csv")$semanticnet_scale)
 m <- read.csv("data/semanticnet/scale_matches.csv") %>% filter(match_type != "none", dois != "")
-flags <- read.csv("data/semanticnet/psyc_coverage_flags.csv")
-# covered_hunt in the flags file goes stale whenever a hunt batch lands;
-# read the hunt parquet directly instead
-hunt_dois <- arrow::read_parquet("data/restricted/scale-hunt-extractions-exploded.parquet") %>%
-  distinct(path) %>%
-  mutate(DOI = str_c("10.1037/t", str_sub(str_extract(path, "[0-9]{9}"), 5, 9), "-000")) %>%
+doi_of <- function(path) str_c("10.1037/t", str_sub(str_extract(path, "[0-9]{9}"), 5, 9), "-000")
+# coverage of the earlier tiers, read live: the extraction (bucket "scaled") and the hunt parquet
+synthnet_dois <- arrow::open_dataset("data/raw-extractions-exploded.parquet") %>%
+  filter(bucket == "scaled") %>% distinct(path) %>% collect() %>% mutate(DOI = doi_of(path)) %>%
   pull(DOI) %>% unique()
+hunt_dois <- arrow::read_parquet("data/restricted/scale-hunt-extractions-exploded.parquet") %>%
+  distinct(path) %>% mutate(DOI = doi_of(path)) %>% pull(DOI) %>% unique()
 p <- readRDS(PSYC_RECORDS)
 meta <- p %>% transmute(DOI, Name, first_construct, InstrumentType, TestYear, Permissions,
                         expected = number_of_test_items_best_guess)
 pi <- readRDS(PSYC_INFO)
 usage <- pi %>% group_by(DOI) %>% summarise(usage_count = sum(usage_count, na.rm = TRUE))
+in_targets <- read.csv("data/semanticnet/psyc_coverage_flags.csv") %>% select(DOI, in_targets156)
 
-cand <- m %>% separate_rows(dois, sep = ";") %>% rename(DOI = dois) %>%
-  left_join(flags, by = "DOI") %>% left_join(meta, by = "DOI") %>%
+# names without generic words ("scale", "inventory", ...; as in aligns_ingest.R) and without
+# bare numbers ("trauma symptom checklist-40", "affectometer 2"); roman numerals are kept,
+# they mark versions with different items (self-description questionnaire i vs iii)
+norm <- function(x) str_squish(str_replace_all(tolower(x), "[^a-z0-9 ]", " "))
+GENERIC <- c("scale","scales","questionnaire","inventory","test","index","survey","measure",
+             "checklist","schedule","form","revised","short","brief","version","assessment",
+             "interview","rating","the")
+core <- function(x) sapply(str_split(norm(x), " "), function(t) paste(setdiff(t[!str_detect(t, "^[0-9]+$")], GENERIC), collapse = " "))
+
+# Candidate pairs must be compatible: a short scale name (< 3 words and < 20 characters) is
+# only trusted when it equals the record name apart from generic words and numbers
+# ("perceived stress" = "perceived stress scale", but not "self-efficacy questionnaire for
+# children"), and the item count must be within 25% of the record's documented count.
+cand <- m %>% filter(!semanticnet_scale %in% excluded_scales) %>%
+  separate_rows(dois, sep = ";") %>% rename(DOI = dois) %>%
+  left_join(in_targets, by = "DOI") %>% left_join(meta, by = "DOI") %>%
   left_join(usage, by = "DOI") %>%
   mutate(usage_count = coalesce(usage_count, 0),
          ntok = str_count(semanticnet_scale, "[[:alnum:]]+"),
-         name_norm = str_squish(str_replace_all(tolower(Name), "[^a-z0-9 ]", " ")),
-         contained = str_detect(name_norm, fixed(semanticnet_scale)),
-         name_safe = ntok >= 3 | nchar(semanticnet_scale) >= 20 | coalesce(contained, FALSE),
+         core_eq = nchar(core(semanticnet_scale)) > 0 & core(semanticnet_scale) == core(Name),
+         name_safe = ntok >= 3 | nchar(semanticnet_scale) >= 20 | core_eq,
          count_ok = is.na(expected) | (abs(n_items - expected) / pmax(expected, 1)) <= 0.25,
+         covered_synthnet = DOI %in% synthnet_dois,
          uncovered = !covered_synthnet & !(DOI %in% hunt_dois)) %>%
-  # SemanticNet items are English: never file them under a translation record
-  filter(!is_language_variant(Name), name_safe, count_ok)
+  filter(name_safe, count_ok)
 
-# full gated match set, regardless of coverage by other tiers (for
-# coverage_by_source.R, which reports overlapping coverage per source)
-cand %>%
-  group_by(semanticnet_scale) %>% slice_max(usage_count, n = 1, with_ties = FALSE) %>% ungroup() %>%
-  group_by(DOI) %>% slice_max(n_items, n = 1, with_ties = FALSE) %>% ungroup() %>%
+# Each SemanticNet scale goes to its best-matching record among ALL compatible records (most
+# used; ties: closest item count, then DOI), one scale per record (most items). If that record is
+# a translation (SemanticNet items are English) or already covered by an earlier tier, the
+# scale fills nothing: it must not fall through to a lesser, uncovered match.
+best <- cand %>%
+  arrange(desc(usage_count), abs(n_items - expected), DOI) %>%
+  group_by(semanticnet_scale) %>% slice_head(n = 1) %>% ungroup() %>%
+  filter(!is_language_variant(Name)) %>%
+  group_by(DOI) %>% slice_max(n_items, n = 1, with_ties = FALSE) %>% ungroup()
+
+# full matched set, regardless of coverage by other tiers (for coverage_by_source.R, which
+# reports overlapping coverage per source)
+best %>%
   transmute(DOI, Name, semanticnet_scale, n_items, usage_count, match_type,
             covered_synthnet, covered_hunt = DOI %in% hunt_dois) %>%
   write.csv("data/processed/semanticnet_matches_all.csv", row.names = FALSE)
 
-cand <- cand %>% filter(uncovered)
-
-# one best PsycTests record per semanticnet scale; one semanticnet scale per DOI
-fills <- cand %>%
-  group_by(semanticnet_scale) %>% slice_max(usage_count, n = 1, with_ties = FALSE) %>% ungroup() %>%
-  group_by(DOI) %>% slice_max(n_items, n = 1, with_ties = FALSE) %>% ungroup()
+fills <- best %>% filter(uncovered)
 
 rows <- fills %>%
   mutate(accession = str_c("9999", str_match(DOI, "10[.]1037/t([0-9]{5})-000")[, 2]),

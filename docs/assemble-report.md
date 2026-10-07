@@ -6,6 +6,7 @@ Implementation map (helpers, how sections are wired): `architecture-assemble.md`
 
 - **Stage logs** — every real `python -m assemble` run writes the combined stage reports to `logs/assemble-<timestamp>.log` (`--no-logs` skips; `--report-only` never writes).
 - **Stats sidecars** — patch and postprocess write `<artifact>.stats.json` next to their parquet on real runs: per-step counters (`Ctx.stats`) plus the report lines. Latest run wins, so older runs survive only in the logs. `assemble.stats.stats_stale` flags a sidecar older than its parquet.
+- **Tracked copies** — each sidecar and the published `<stem>.md` is also copied into `data.reports_dir` (`reports/`, committed to the source repo, never to the public one) when written, so data changes show up as diffs in git.
 
 ## The report
 
@@ -53,6 +54,6 @@ This block (`_fidelity_lines`) reports how closely the extracted item text match
 - **Similarity** = 1 − `pdf_match_edit_distance_norm`.
 - **Method paragraph** — generated from `postprocess.PDF_MATCH_NORM_MAX` / `PDF_TEXT_CHARS_MIN` and the installed rapidfuzz version. Its prose (reference text, algorithm, no preprocessing) must be updated by hand if `best_partial_distance` or `pdf_text_excl_first_page` change.
 - **Units** — distinct items (a multi-scale item has one text, so de-duplicating loses nothing), the per-instrument mean and per-instrument minimum, and placements for reference.
-- **Subsets** — each unit is reported over all measured items, over checkable items (text layer ≥ `PDF_TEXT_CHARS_MIN`), and over checkable English originals (translated items cannot match the original-language PDF).
+- **Subsets** — each unit is reported over all measured items, over checkable items (`pdf_text_checkable`: text layer ≥ `PDF_TEXT_CHARS_MIN` and items not printed as images), and over checkable English originals (translated items cannot match the original-language PDF).
 - **p5 instead of p95** — similarity piles up at 100%, so the low tail is the informative one.
-- **Gotcha:** "instrument *mean* below threshold" and "≥ 1 item below threshold" are different figures (9,149 vs 10,720 in the Sep 2026 corpus). The report prints both.
+- **Gotcha:** "instrument *mean* below threshold" and "≥ 1 item below threshold" are different figures (9,149 vs 8,361 in the Oct 2026 corpus). The report prints both.

@@ -20,16 +20,18 @@ Two building blocks appear again and again.
 
 | Extractor | Metric | Answers the question | Pass threshold |
 |---|---|---|---|
-| Items | Count agreement | Did runs find the same number of items? | ≥ 0.90 |
-| Items | Levenshtein alpha | Are the item texts the same? (Krippendorff's α) | ≥ 0.80 |
-| Scales | Count agreement | Did runs find the same number of scales and subscales? | ≥ 0.90 |
-| Scales | Tree overlap | Is the scale/subscale structure the same? | ≥ 0.80 |
+| Items | Count agreement | Did runs find the same number of items? | = 1.00 |
+| Items | Levenshtein alpha | Are the item texts the same? (Krippendorff's α) | ≥ 0.90 |
+| Scales | Count agreement | Did runs find the same number of scales and subscales? | = 1.00 |
+| Scales | Tree overlap | Is the scale/subscale structure the same? | ≥ 0.90 |
 | Instrument | Count agreement | Did runs make the same number of item-to-scale assignments? | reported only |
-| Instrument | Assignment alpha | Were items assigned to the same scales? (Krippendorff's α) | ≥ 0.80 |
+| Instrument | Assignment alpha | Were items assigned to the same scales? (Krippendorff's α) | ≥ 0.90 |
 | Instrument | Reverse-coding agreement | Do runs agree on which items are reverse-scored? | ≥ 0.90 |
-| Meta-data | Language agreement | Same language code? | ≥ 0.95 |
-| Meta-data | Intake-form agreement | Same intake-form classification? | ≥ 0.95 |
-| Meta-data | Objective-measure agreement | Same objective-measure classification? | ≥ 0.95 |
+| Meta-data | Language agreement | Same language code? | = 1.00 |
+| Meta-data | Intake-form agreement | Same intake-form classification? | = 1.00 |
+| Meta-data | Objective-measure agreement | Same objective-measure classification? | = 1.00 |
+
+Thresholds are `testing.reliability.thresholds` in `config.yaml`; the table mirrors the values used for the reported runs (logs/test-reliability-20260914_104048-*.md). A count agreement of 1.00 means every pair of runs agrees.
 
 A document passes an extractor's reliability check only if **every** thresholded metric reaches its threshold. If a metric cannot be computed, that counts as a fail.
 
@@ -68,7 +70,7 @@ alpha = 1 − (observed disagreement) / (expected disagreement)
 
 *Observed disagreement* is the average squared text distance between runs for the same item position. *Expected disagreement* is the average squared distance you would see if item texts were shuffled at random across positions, that is, the disagreement of raters who were not looking at the document at all.
 
-**Reading it.** Alpha is 1 when every run produced identical wording for every item, 0 when agreement is no better than chance, and can go slightly negative when agreement is worse than chance. The usual content-analysis conventions apply: 0.80 and above is considered reliable, which is why that is the pass threshold. Because the disagreement measure is *graded* rather than all-or-nothing, a run that writes "I feel calm and relaxed" where another wrote "I feel calm, relaxed" is penalised only a little, while a completely different sentence is penalised heavily.
+**Reading it.** Alpha is 1 when every run produced identical wording for every item, 0 when agreement is no better than chance, and can go slightly negative when agreement is worse than chance. The usual content-analysis convention treats 0.80 and above as reliable; the pass threshold is stricter, at 0.90. Because the disagreement measure is *graded* rather than all-or-nothing, a run that writes "I feel calm and relaxed" where another wrote "I feel calm, relaxed" is penalised only a little, while a completely different sentence is penalised heavily.
 
 ---
 
@@ -118,7 +120,7 @@ Two empty trees are perfectly similar (1.0); an empty tree versus a non-empty on
 
 Tree similarity = (0.75 + 1.0) / 3 = 0.58.
 
-**Reading it.** 1.0 means identical trees. The score drops both for renamed scales (gradually, in proportion to the renaming) and for structural differences such as an extra subscale or a subscale placed under a different parent. The pass threshold is 0.80.
+**Reading it.** 1.0 means identical trees. The score drops both for renamed scales (gradually, in proportion to the renaming) and for structural differences such as an extra subscale or a subscale placed under a different parent. The pass threshold is 0.90.
 
 ---
 
@@ -155,7 +157,7 @@ disagreement between two categories = 0 if identical, 1 otherwise
 
 Items 1 and 3 show perfect agreement; items 2 and 4 each have one dissenting run. Alpha will be clearly below 1 but well above 0, reflecting mostly consistent assignment.
 
-**Reading it.** As for any nominal alpha: 1 is perfect, 0 is chance, 0.80 is the conventional bar for reliable coding and is the pass threshold. If every cell is identical the score is 1 by definition.
+**Reading it.** As for any nominal alpha: 1 is perfect, 0 is chance, 0.80 is the conventional bar for reliable coding; the pass threshold is stricter, at 0.90. If every cell is identical the score is 1 by definition.
 
 ### Reverse-coding agreement
 
@@ -193,7 +195,7 @@ Agreement = (number of run pairs with the identical value)
 
 **Example.** Three runs report language `en`, `en`, `de`. One pair agrees out of three. Language agreement = 0.33.
 
-**Reading it.** These are single categorical judgements that should be nearly deterministic, so the pass threshold is high at 0.95, which in practice means all runs must agree.
+**Reading it.** These are single categorical judgements that should be nearly deterministic, so the pass threshold is 1.00: all runs must agree.
 
 ---
 

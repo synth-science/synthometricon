@@ -43,23 +43,26 @@ apa rows only. Fuzzy-locates each `item_item_text` in `pdf_full_text` (rapidfuzz
 - `pdf_match_edit_distance` (`Int64`) — Levenshtein distance to the best-matching window.
 - `pdf_match_edit_distance_norm` (`Float64`, [0, 1]; 0 = verbatim).
 - `pdf_text_chars` — body-text length each distance was measured against, kept so the text flag stays auditable.
+- `pdf_text_checkable` (`boolean`) — False when the text layer cannot show the items (see below), NA without a PDF.
 
-NA where item or PDF text is missing (all partials). Then **drops `pdf_full_text`**: copyrighted APA text must not ship, and it can't go in `EXTRA_DROP_COLS` because `drop_columns` runs first. Runs after `filter_rows` so matching only touches published rows.
+NA where item or PDF text is missing (all partials). Then **drops `pdf_full_text`**: copyrighted APA text must not ship, and it can't go in `EXTRA_DROP_COLS` because `drop_columns` runs first. It also drops `meta_page_count` and `meta_image_count` (`PDF_SHAPE_COLS`) after the image-only rule has used them. Runs after `filter_rows` so matching only touches published rows.
 
 `PDF_TEXT_CHARS_MIN = 200`: below it the PDF has no usable text layer (a scan read by the vision model), so every item "deviates". Calibration: of the documents it excludes, 99.5 % have no verifiably matching item, and it costs only 15 matching rows corpus-wide; 300 would discard 587 matching rows, 400 would discard 3,550.
+
+`PDF_TEXT_CHARS_PER_PAGE_MIN = 500`: many PDFs carry a text layer of a few hundred characters (the PsycTESTS header and footer) while the item table itself is an embedded image, which the vision model reads. The absolute cutoff lets them through, so every item "deviates" (Oct 2026 corpus: ≈2,440 documents with no item at ≥ .50 similarity and a text layer shorter than their own items). `pdf_text_checkable` is therefore also False when a document has at least one image per body page beyond the per-page logo (`meta_image_count − meta_page_count ≥ meta_page_count − 1`) and fewer than 500 text characters per body page. Calibration on the Oct 2026 corpus: the rule excludes 2,365 documents, catches 2,063 of the 2,440 suspect documents above (85 %), and only 27 excluded documents had an item at ≥ 95 % similarity; 400 would exclude 2,082 (14 with a match), 600 would exclude 2,540 (38).
 
 ## flags
 
 Adds `flag_*` nullable booleans — **True = warning, False = checked and consistent, NA = not checkable** — plus the `record_*` reference values they compare against.
 
-- **References**: `load_meta_reference` reads the PsycTESTS records at `data.meta`; `META_REFERENCE_FIELDS` maps `number_of_test_items_best_guess` → `record_item_count`, `number_of_factors_subscales` → `record_scale_count` (non-integer values → null). Joined on lower-cased `doi_psyctests`, so partials with stem-derived DOIs are checked too. `record_*` not `meta_*`: these are the database's claims, not what the Meta extractor read.
+- **References**: `load_meta_reference` reads the PsycTESTS records at `data.meta`; `META_REFERENCE_FIELDS` maps `number_of_test_items_best_guess` → `record_item_count`, `number_of_factors_subscales` → `record_scale_count` (non-integer values → null). Joined on lower-cased `doi_psyctests`, so partials with stem-derived DOIs carry the reference values too, but the two count flags are NA for them: a partial source (web retrieval, SemanticNet, ALIGNS) often holds only part of an instrument, so a count that differs from the record says nothing about extraction quality (this is what the dataset card and Supplementary Note 6 describe). `record_*` not `meta_*`: these are the database's claims, not what the Meta extractor read.
 - **Observed counts** are per document (`path`), over distinct ids (rows repeat per `(item, leaf scale)`). They are **pre-filter**: `filter_rows` attaches `observed_item_count` / `observed_scale_count` before dropping anything, and they stay in the output, so a row-level filter never reads as an extraction deviation and the flag stays auditable. Counting the frame at hand is only the fallback for a standalone `flags` run. Null-path rows get NA rather than a merged pseudo-document count.
 
 | flag | True when | NA when |
 |---|---|---|
-| `flag_item_count_deviation` | distinct `item_item_id` ≠ `record_item_count` | no reference |
-| `flag_scale_count_deviation` | distinct `scale_id` ≠ `record_scale_count` (field present on ~14 % of records) | no reference, or reference 0 ("no structure reported") |
-| `flag_item_text_deviation` | `pdf_match_edit_distance_norm` > `PDF_MATCH_NORM_MAX` (0.05, i.e. < 95 % similarity) | nothing measured, or `pdf_text_chars` < `PDF_TEXT_CHARS_MIN` |
+| `flag_item_count_deviation` | distinct `item_item_id` ≠ `record_item_count` | no reference, or a partial source |
+| `flag_scale_count_deviation` | distinct `scale_id` ≠ `record_scale_count` (field present on ~14 % of records) | no reference, reference 0 ("no structure reported"), or a partial source |
+| `flag_item_text_deviation` | `pdf_match_edit_distance_norm` > `PDF_MATCH_NORM_MAX` (0.05, i.e. < 95 % similarity) | nothing measured, or `pdf_text_checkable` is False (thin or image-only text layer; a standalone run on older output falls back to `pdf_text_chars` < `PDF_TEXT_CHARS_MIN`) |
 | `flag_item_translated` | `item_language` is an ISO 639-1 code other than `en` (the published English text is a translation) | no language known |
 
 The last two use no record. Gotcha: after a parquet round-trip the norm column is plain float64, where `gt(NaN)` is False, so the flag masks NA explicitly. With no `data.meta` or no `doi_psyctests` the record-based flags degrade to all-NA with a logged WARNING.

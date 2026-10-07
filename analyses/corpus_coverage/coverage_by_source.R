@@ -37,7 +37,8 @@ aligns_all <- union(aligns_fill, read.csv("data/processed/aligns_matches_all.csv
 
 records <- readRDS(PSYC_RECORDS) %>% distinct(DOI)
 usage <- readRDS(PSYC_INFO) %>% group_by(DOI) %>%
-  summarise(usage_count = sum(usage_count, na.rm = TRUE), .groups = "drop")
+  summarise(usage_count = sum(usage_count, na.rm = TRUE), .groups = "drop") %>%
+  filter(usage_count > 0)  # 26 DOIs have rows with only NA usage
 n_records <- nrow(records)
 n_usage <- nrow(usage)
 total_usage <- sum(usage$usage_count)

@@ -13,6 +13,7 @@ import pandas as pd
 import yaml
 
 from .combine import write_parquet
+from .encode import SCALE_NAME_COL, scale_names_path
 
 # Document-constant; taken from the group's document row.
 DOC_COLS = (
@@ -103,6 +104,37 @@ def _ms(values) -> str:
     q1, med, q3 = (float(v) for v in s.quantile([0.25, 0.5, 0.75]))
     return (f"M {s.mean():,.2f} (SD {sd}), "
             f"Mdn {med:,.2f} [IQR {q1:,.2f}-{q3:,.2f}]")
+
+
+def load_scale_names(embedded_path, scale_models: dict[str, str]) -> dict[str, dict]:
+    """{model: {name: vector}} from encode's scale-name sidecar; empty when it is absent."""
+    sidecar = scale_names_path(embedded_path)
+    if not scale_models or not sidecar.exists():
+        return {}
+    tbl = pd.read_parquet(sidecar)
+    out = {}
+    for m, col in scale_models.items():
+        if col in tbl.columns:
+            out[m] = {t: v for t, v in zip(tbl[SCALE_NAME_COL], tbl[col])
+                      if isinstance(t, str) and v is not None}
+    return out
+
+
+def node_vectors(cells, keys, names, sid_row, lookup) -> dict:
+    """Own-name vector per scale node: its direct row's cell, else its name from ``lookup``.
+
+    Parent-only nodes have no direct row; their name comes from ``scale_name_path``.
+    """
+    out = {}
+    for key in keys:
+        own = sid_row.get(key)
+        v = cells[own] if own is not None else None
+        if v is None and lookup:
+            name = names[key][0]
+            if isinstance(name, str):
+                v = lookup.get(name)
+        out[key] = v
+    return out
 
 
 def build_groups(df: pd.DataFrame):
@@ -196,6 +228,12 @@ def run(cfg: dict, *, report_only: bool = False,
     if report_only:
         return report
 
+    name_vecs = load_scale_names(inp, scale_models)
+    if scale_models and not name_vecs:
+        report.append(f"WARNING: no scale-name sidecar ({scale_names_path(inp)}) — "
+                      "parent-only nodes get no name embedding and their names "
+                      "are missing from scale_pooled_*; rerun encode")
+
     # (matrix, row -> matrix position) per item model.
     mats: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     for m, col in item_models.items():
@@ -207,6 +245,16 @@ def run(cfg: dict, *, report_only: bool = False,
         mats[m] = (mat, pos)
     scale_cells = {m: df[col].to_numpy(dtype=object)
                    for m, col in scale_models.items()}
+    node_vecs = {m: node_vectors(cells, scales, names, sid_row, name_vecs.get(m))
+                 for m, cells in scale_cells.items()}
+    for m, vecs in node_vecs.items():
+        named = [k for k in scales if isinstance(names[k][0], str)]
+        parent_only = [k for k in named if k not in sid_row]
+        report.append(
+            f"scale_embedding_{m}: {sum(vecs[k] is not None for k in scales):,} of "
+            f"{len(scales):,} nodes ({len(named):,} named); parent-only named "
+            f"nodes with an own-name vector: "
+            f"{sum(vecs[k] is not None for k in parent_only):,} of {len(parent_only):,}")
     instr_cells = {m: df[col].to_numpy(dtype=object)
                    for m, col in instr_models.items()}
     doc_meta = {c: df[c].to_numpy(dtype=object) for c in DOC_COLS}
@@ -232,12 +280,12 @@ def run(cfg: dict, *, report_only: bool = False,
                 cells[f"keying_disagreements_{m}"] = None
         return cells
 
-    def pool_scales(path, sid_set, di) -> dict:
+    def pool_scales(path, nodes, di) -> dict:
+        """Mean of the own-name vectors of ``nodes`` (each once) and the instrument title's."""
         cells = {}
-        for m, cell_arr in scale_cells.items():
-            vecs = [cell_arr[sid_row[(path, s)]] for s in sorted(sid_set)
-                    if (path, s) in sid_row
-                    and cell_arr[sid_row[(path, s)]] is not None]
+        for m, vec_of in node_vecs.items():
+            vecs = [vec_of[(path, s)] for s in sorted(nodes)
+                    if vec_of.get((path, s)) is not None]
             instr_arr = instr_cells.get(m)
             if instr_arr is not None and instr_arr[di] is not None:
                 vecs.append(instr_arr[di])
@@ -260,10 +308,10 @@ def run(cfg: dict, *, report_only: bool = False,
                "scale_name": name, "scale_depth": depth,
                "n_items": len(g["rows"]), "n_scales": len(g["subtree"])}
         rec.update(pool_items(g))
-        rec.update(pool_scales(path, g["sids"], di))
-        for m, cell_arr in scale_cells.items():
-            rec[f"scale_embedding_{m}"] = (
-                cell_arr[own] if own is not None else None)
+        # The node itself and every descendant node, intermediate ones included.
+        rec.update(pool_scales(path, g["subtree"], di))
+        for m, vec_of in node_vecs.items():
+            rec[f"scale_embedding_{m}"] = vec_of[(path, node)]
         for m in instr_cells:
             rec[f"instrument_embedding_{m}"] = None
         records.append(rec)
@@ -278,6 +326,7 @@ def run(cfg: dict, *, report_only: bool = False,
                "scale_name": None, "scale_depth": None,
                "n_items": len(g["rows"]), "n_scales": len(g["subtree"])}
         rec.update(pool_items(g))
+        # Instrument rows keep their label: the item-bearing scales' names and the title.
         rec.update(pool_scales(path, g["sids"], di))
         for m in scale_cells:
             rec[f"scale_embedding_{m}"] = None

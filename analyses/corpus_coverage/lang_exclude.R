@@ -30,7 +30,23 @@ LANG_WORDS <- c(
   "bosnian", "russian", "ukrainian", "estonian", "latvian", "lithuanian",
   "georgian", "armenian", "azerbaijani", "kazakh", "uzbek", "mongolian",
   "amharic", "ethiopian", "swahili", "yoruba", "igbo", "hausa", "zulu",
-  "xhosa", "afrikaans", "maltese", "welsh", "irish"
+  "xhosa", "afrikaans", "maltese", "welsh", "irish",
+  # added after a scan of PsycTests names for "<word> version/translation/adaptation"
+  # that the list above missed (Oct 2026); English-speaking adaptations (uk, us,
+  # australian, british, new zealand) stay allowed, they are not translations
+  "bangla", "kirundi", "kurdish", "isixhosa", "twi", "malayalam", "chichewa",
+  "creole", "kreyol", "kriol", "haitian", "kinyarwanda", "kinyarwandan", "kiswahili",
+  "sinhalese", "luganda", "malagasy", "melayu", "samoan", "setswana", "somali",
+  "venda", "faroese", "fijian", "miskito", "oromo", "runyankole", "shona", "sidama",
+  "sindhi", "tigrigna", "tigrignan", "tongan", "dusun", "mirpuri", "myaamia",
+  "deutsche", "portugese", "catalonian", "slovakian", "swiss", "scandinavian",
+  "sign language", "argentinean", "ghanaian", "nepalese", "ugandan", "nigerian",
+  "cuban", "dominican", "ecuadorian", "emirati", "gambian", "iraqi", "kenyan",
+  "laotian", "malawian", "rwandan", "salvadoran", "venezuelan", "zambian",
+  "zimbabwean", "singaporean", "puerto rican", "costa rican", "hispanic", "latino",
+  "taiwan", "nepal", "india", "indonesia", "malaysia", "singapore", "chile",
+  "china", "japan", "mexico", "israel", "kenya", "zimbabwe", "hong kong",
+  "sierra leone"
 )
 LANG_VERSION_RE <- stringr::regex(stringr::str_c(
   "\\b(", paste(LANG_WORDS, collapse = "|"), ")",

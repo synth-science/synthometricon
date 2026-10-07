@@ -27,6 +27,7 @@ from cryptography.fernet import Fernet
 
 from assemble import report as descriptives
 from assemble.combine import canonicalize_schema
+from assemble.stats import mirror_report
 
 from . import keys, manifest, paths
 from .paths import release_path
@@ -197,6 +198,8 @@ def run(cfg: dict, *, report_only: bool = False, input_path=None,
     # Built here so the report can never drift from the artifact beside it.
     descriptives.run(cfg, output_path=md_path)
     report.append(f"wrote descriptives {md_path.name}")
+    if mirrored := mirror_report(md_path, cfg):
+        report.append(f"mirrored descriptives to {mirrored}")
     write_readme(readme, out, payload)
     report.append(f"wrote {readme.name}")
     return report

@@ -5,6 +5,7 @@ Overwritten on every real run (history lives in ``logs/assemble-*.log``); read b
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,19 @@ def write_stats(artifact_path, stage: str, stats: dict,
         fh.write("\n")
     tmp.replace(path)
     return path
+
+
+def mirror_report(path, cfg: dict) -> Optional[Path]:
+    """Copy ``path`` into ``data.reports_dir`` (tracked in git); None when unset."""
+    reports_dir = (cfg.get("data", {}) or {}).get("reports_dir")
+    if not reports_dir:
+        return None
+    dest = Path(reports_dir) / Path(path).name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    shutil.copyfile(path, tmp)
+    tmp.replace(dest)
+    return dest
 
 
 def read_stats(artifact_path) -> Optional[dict]:

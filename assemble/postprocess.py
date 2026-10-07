@@ -23,7 +23,7 @@ import yaml
 from extraction.storage import PATH_COL, RETRY_SUFFIXES, USAGE_SUFFIXES
 
 from .combine import write_parquet
-from .stats import write_stats
+from .stats import mirror_report, write_stats
 from .patch import (DOI_PSYCTESTS_COL, PDF_FULL_TEXT_COL, apa_mask,
                     doi_in_text)
 
@@ -37,8 +37,8 @@ DOC_TELEMETRY_COLS: tuple[str, ...] = ("has_errors", "total_duration")
 
 EXTRA_DROP_COLS: tuple[str, ...] = (
     "meta_doi_raw",  # superseded by the corroborated doi_psyctests
-    # PDF-shape internals
-    "meta_page_count", "meta_image_count", "meta_char_count_excl_first_page",
+    # PDF-shape internals (page and image counts are dropped by pdf_match, which needs them)
+    "meta_char_count_excl_first_page",
     # scraper QA fields (partial-only); ``version`` is deliberately kept
     "source_grade", "extraction_confidence",
     "verify_verdict", "verbatim_claimed", "retrieval_notes",
@@ -423,6 +423,30 @@ PDF_MATCH_DIST_COL = "pdf_match_edit_distance"
 PDF_MATCH_NORM_COL = "pdf_match_edit_distance_norm"
 # Kept so flag_item_text_deviation stays auditable after pdf_full_text is dropped.
 PDF_TEXT_CHARS_COL = "pdf_text_chars"
+# Whether the text layer can be checked at all (False: too thin, or items printed as images).
+PDF_CHECKABLE_COL = "pdf_text_checkable"
+# PDF shape from extraction; needed for the image-only rule, dropped after pdf_match.
+PDF_SHAPE_COLS: tuple[str, ...] = ("meta_page_count", "meta_image_count")
+
+
+def _text_checkable(df: pd.DataFrame) -> pd.Series:
+    """False when the text layer cannot show the items; NA when there is no text layer to measure.
+
+    Two cases: the layer is under ``PDF_TEXT_CHARS_MIN`` characters, or the items are printed as images,
+    i.e. at least one image per body page beyond the per-page PsycTESTS logo and fewer than
+    ``PDF_TEXT_CHARS_PER_PAGE_MIN`` characters per body page (pages 2..n). Calibration in
+    docs/assemble-postprocess.md#pdf_match.
+    """
+    def num(name: str) -> pd.Series:
+        s = df[name] if name in df.columns else pd.Series(float("nan"), index=df.index)
+        return pd.to_numeric(s, errors="coerce").astype(float)
+
+    chars, pages, images = num(PDF_TEXT_CHARS_COL), num("meta_page_count"), num("meta_image_count")
+    body = pages - 1
+    image_only = ((body > 0) & (images - pages >= body)
+                  & (chars / body.where(body > 0) < PDF_TEXT_CHARS_PER_PAGE_MIN))
+    checkable = chars.ge(PDF_TEXT_CHARS_MIN) & ~image_only.fillna(False)
+    return checkable.astype("boolean").mask(chars.isna())
 
 
 def step_pdf_match(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
@@ -441,7 +465,9 @@ def step_pdf_match(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
         df[PDF_MATCH_DIST_COL], df[PDF_MATCH_NORM_COL] = dist, norm
         df[PDF_TEXT_CHARS_COL] = pd.Series(pd.NA, index=df.index,
                                            dtype="Int64")
-        return df
+        df[PDF_CHECKABLE_COL] = pd.Series(pd.NA, index=df.index,
+                                          dtype="boolean")
+        return df.drop(columns=[c for c in PDF_SHAPE_COLS if c in df.columns])
 
     def _nonempty(s: pd.Series) -> pd.Series:
         return s.map(lambda t: isinstance(t, str) and bool(t))
@@ -496,6 +522,16 @@ def step_pdf_match(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
             "an item against")
     ctx.stat("pdf_match.thin_text_layer",
              {"rows": int(thin.sum()), "documents": _doc_count(df, thin)})
+    df[PDF_CHECKABLE_COL] = _text_checkable(df)
+    image_only = df[PDF_CHECKABLE_COL].eq(False).fillna(False) & ~thin
+    ctx.log(f"{PDF_CHECKABLE_COL}: {int(image_only.sum()):,} further rows "
+            f"({_doc_count(df, image_only):,} documents) not checkable — "
+            "items printed as images (>= 1 extra image per body page, < "
+            f"{PDF_TEXT_CHARS_PER_PAGE_MIN} chars per body page)")
+    ctx.stat("pdf_match.items_as_images",
+             {"rows": int(image_only.sum()),
+              "documents": _doc_count(df, image_only)})
+    df = df.drop(columns=[c for c in PDF_SHAPE_COLS if c in df.columns])
     ctx.log(f"dropped {PDF_FULL_TEXT_COL} (copyrighted PDF body text)")
     return df
 
@@ -564,18 +600,18 @@ def _column(df: pd.DataFrame, name: str) -> Optional[pd.Series]:
 
 def _flag_item_count_deviation(df: pd.DataFrame,
                                obs: pd.DataFrame) -> pd.Series:
-    """Distinct items differ from ``record_item_count``."""
+    """Distinct items differ from ``record_item_count``; NA for partial sources."""
     return _deviates(df.index, _column(obs, "item_count"),
-                     _column(df, "record_item_count"))
+                     _column(df, "record_item_count")).mask(~apa_mask(df))
 
 
 def _flag_scale_count_deviation(df: pd.DataFrame,
                                 obs: pd.DataFrame) -> pd.Series:
-    """Distinct scales differ from ``record_scale_count`` (a recorded 0 is not checkable)."""
+    """Distinct scales differ from ``record_scale_count`` (a recorded 0 is not checkable); NA for partial sources."""
     reference = _column(df, "record_scale_count")
     if reference is not None:
         reference = reference.mask(reference.eq(0))
-    return _deviates(df.index, _column(obs, "scale_count"), reference)
+    return _deviates(df.index, _column(obs, "scale_count"), reference).mask(~apa_mask(df))
 
 
 # Normalised distance, i.e. a 0.95-similarity cutoff.
@@ -583,18 +619,24 @@ PDF_MATCH_NORM_MAX = 0.05
 
 # Below this the PDF has no usable text layer; calibration in docs/assemble-postprocess.md#pdf_match.
 PDF_TEXT_CHARS_MIN = 200
+# Image-heavy PDFs with less body text per page than this print their items as images (same calibration).
+PDF_TEXT_CHARS_PER_PAGE_MIN = 500
 
 
 def _flag_item_text_deviation(df: pd.DataFrame,
                               obs: pd.DataFrame) -> pd.Series:
-    """Item is not a near-verbatim match of its PDF body text; NA if unmeasured or text layer too thin."""
+    """Item is not a near-verbatim match of its PDF body text; NA if unmeasured or the text layer is not checkable."""
     norm = _column(df, PDF_MATCH_NORM_COL)
     if norm is None:
         return pd.Series(pd.NA, index=df.index, dtype="boolean")
     # Explicit isna mask: after a parquet round-trip the column is float64 and gt(NaN) is False.
     values = pd.to_numeric(norm, errors="coerce")
     flag = values.gt(PDF_MATCH_NORM_MAX).astype("boolean").mask(values.isna())
-    chars = _column(df, PDF_TEXT_CHARS_COL)
+    checkable = _column(df, PDF_CHECKABLE_COL)
+    if checkable is not None:  # pdf_match ran: thin and image-only text layers
+        flag = flag.mask(checkable.astype("boolean").eq(False).fillna(False).astype(bool))
+        return flag
+    chars = _column(df, PDF_TEXT_CHARS_COL)  # standalone flags run on older output
     if chars is not None:
         thin = pd.to_numeric(chars, errors="coerce").lt(PDF_TEXT_CHARS_MIN)
         flag = flag.mask(thin.fillna(False).astype(bool))
@@ -747,7 +789,7 @@ def run(cfg: dict, *, report_only: bool = False,
     if not report_only:
         write_parquet(df, out)
         ctx.log(f"wrote {out}")
-        write_stats(out, "postprocess", ctx.stats, ctx.report)
+        mirror_report(write_stats(out, "postprocess", ctx.stats, ctx.report), cfg)
     return ctx.report
 
 

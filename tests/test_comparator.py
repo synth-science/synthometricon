@@ -523,6 +523,69 @@ def test_anywhere_loose_not_found_fails():
         report.render()
 
 
+def test_anywhere_more_entries_than_candidates_reports_missing():
+    """Surplus ``!anywhere`` entries (more than actual candidates) are missing, not silently dropped."""
+    actual = _make_instrument(_EXTRAVERSION_INSTRUMENT)  # two items in total
+    expected = {
+        "scales": [
+            {
+                "items": AnywhereList([
+                    {"item_text": MatchSpec(mode="contains", value="life of the party")},
+                    {"item_text": MatchSpec(mode="contains", value="don't talk")},
+                    {"item_text": MatchSpec(mode="contains", value="stressed out")},
+                    {"item_text": MatchSpec(mode="contains", value="worry a lot")},
+                ]),
+            },
+        ],
+    }
+    report = validate_extraction(expected, actual)
+    assert report.status == "FAIL"
+    assert report.metrics["n_missing"] == 2, report.render()
+
+
+def test_keyless_entry_does_not_displace_keyed_match():
+    """An expected item without ``item_text`` takes a leftover actual item, never a keyed entry's partner."""
+    actual = _make_instrument(_EXTRAVERSION_INSTRUMENT)
+    expected = {
+        "scales": [
+            {
+                "scale_name": "Extraversion",
+                "items": [
+                    # a near match (no final period): a zero-cost wildcard used to win this partner
+                    {"item_text": "I am the life of the party"},
+                    {"item_text": "I don't talk a lot."},
+                    {"reverse_coded": True},  # untranscribed third item
+                ],
+            },
+        ],
+    }
+    report = validate_extraction(expected, actual)
+    assert report.status == "FAIL"
+    # the keyless entry is the one reported missing; both keyed entries matched
+    assert [i.path for i in report.issues] == ["scales[0].items[2]"], report.render()
+
+
+def test_keyless_entry_matches_leftover_on_other_fields():
+    """A keyless entry consumes the leftover actual item when its recorded fields hold."""
+    actual = _make_instrument(_EXTRAVERSION_INSTRUMENT)
+    expected = {
+        "scales": [
+            {
+                "scale_name": "Extraversion",
+                "items": [
+                    {"item_text": "I am the life of the party."},
+                    {"reverse_coded": True},
+                ],
+            },
+        ],
+    }
+    assert validate_extraction(expected, actual).status == "PASS"
+    expected["scales"][0]["items"][1] = {"reverse_coded": False}
+    report = validate_extraction(expected, actual)
+    assert report.status == "FAIL"
+    assert [i.path for i in report.issues] == ["scales[0].items[1].reverse_coded"], report.render()
+
+
 def test_anywhere_purely_loose_skips_extras_check():
     """A purely loose ``scales: !anywhere`` list never flags extras."""
     actual = _make_instrument(_NESTED_INSTRUMENT)

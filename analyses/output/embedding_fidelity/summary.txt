@@ -1,0 +1,14 @@
+Model: magnolia-psychometrics/surveybot3000; texts encoded: 1991
+Machine side: validity run, logs/test-validity-20260815_172054.md; fixtures: tests/validation-fixtures
+Excluded: 12 documents whose validity failures were due to errors in the human coding (incl. 022), and documents without output in the validity run (018, 022)
+
+Human-coded scales with item text: 223 in 85 documents
+(1) COVERAGE: not in the index 1/223 = 0.4% {'items not in index': 1}; documents ['138']; recovered 222/223 = 99.6% [Wilson 95% CI 97.5%, 99.9%]
+(2) AGREEMENT among the 222 recovered scales (counterparts: {'clear (J >= .5)': 216, 'instrument row': 3, 'partial (J < .5)': 3}; 3 machine rows serve >1 human scale):
+    [95% CIs: document-level cluster bootstrap, 1000 resamples of 85 documents, percentile, seed 20261002]
+  all pairs (incl. scale-subscale)                     pairs  24,531 | r = 0.986 [0.975, 0.996] | RMSE = 0.025 [0.014, 0.036] | MAE = 0.011 | max |diff| = 0.271
+  both counterparts clear (J >= .5)                    pairs  23,220 | r = 0.989 [0.979, 0.997] | RMSE = 0.022 [0.012, 0.033] | MAE = 0.009 | max |diff| = 0.271
+  at least one partial / instrument-row counterpart    pairs   1,311 | r = 0.886 [0.674, 0.981] | RMSE = 0.053 [0.029, 0.079] | MAE = 0.036 | max |diff| = 0.241
+  both from documents that passed the validity check   pairs  17,020 | r = 0.997 [0.994, 0.999] | RMSE = 0.012 [0.006, 0.017] | MAE = 0.005 | max |diff| = 0.232
+  at least one from a genuine-discrepancy document     pairs   7,511 | r = 0.960 [0.918, 0.988] | RMSE = 0.041 [0.025, 0.054] | MAE = 0.025 | max |diff| = 0.271
+  search-relevant: |cos_h| >= .30                      pairs   2,013 | r = 0.991 [0.982, 0.998] | RMSE = 0.031 [0.014, 0.050] | MAE = 0.013 | max |diff| = 0.271

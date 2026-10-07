@@ -651,3 +651,146 @@ def test_run_writes_stats_sidecar(tmp_path):
     run({}, input_path=inp, output_path=out2, steps="schema",
         report_only=True)
     assert not out2.exists() and not stats_path(out2).exists()
+
+
+def test_run_mirrors_stats_sidecar_to_reports_dir(tmp_path):
+    from assemble.patch import run
+    from assemble.stats import stats_path
+
+    inp, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    reports = tmp_path / "reports"
+    pd.DataFrame({"path": ["a.pdf"], "corpus_source": ["apa-psyctests"]}).to_parquet(inp)
+    cfg = {"data": {"reports_dir": str(reports)}}
+    run(cfg, input_path=inp, output_path=out, steps="schema", report_only=True)
+    assert not reports.exists()
+    run(cfg, input_path=inp, output_path=out, steps="schema")
+    assert (reports / "out.stats.json").read_bytes() == stats_path(out).read_bytes()
+
+
+# --- Bug-hunt fixes (Oct 2026) ---
+
+def test_doi_regex_stops_at_non_doi_characters():
+    text = "Source: doi:10.1016/j.jrp.2009.02.007©2009 Elsevier"
+    assert page1_dois(text)[1] == "10.1016/j.jrp.2009.02.007"
+    assert page1_dois("doi:10.1016/j.jrp.2009.02.007,© 2009")[1] == "10.1016/j.jrp.2009.02.007"
+    # U+2010 hyphen and a soft hyphen from the PDF text layer
+    assert doi_in_text("doi:10.1037/0022‐3514.54.5.890") == "10.1037/0022-3514.54.5.890"
+    assert doi_in_text("doi:10.1037/0022-35­14.54.5.890") == "10.1037/0022-3514.54.5.890"
+    # balanced parentheses belong to the DOI, an unbalanced closing one does not
+    assert doi_in_text("(doi:10.1016/0022-3999(80)90024-4).") == "10.1016/0022-3999(80)90024-4"
+    assert (doi_from_url("https://www.frontiersin.org/articles/10.3389/fpsyg.2013.00613/full")
+            == "10.3389/fpsyg.2013.00613")
+    assert doi_from_url("https://doi.org/10.1002/abc.123/abstract") == "10.1002/abc.123"
+    # legacy DOIs with '&' or balanced brackets survive intact
+    assert doi_in_text("doi:10.1207/s15327752jpa5401&2_19.") == "10.1207/s15327752jpa5401&2_19"
+    assert (doi_in_text("[doi:10.1352/0895-8017(2007)112[275:MPDRAW]2.0.CO;2]")
+            == "10.1352/0895-8017(2007)112[275:mpdraw]2.0.co;2")
+
+
+def test_os_copy_original():
+    assert patch.os_copy_original("/p/999900001_full_001 (2).pdf") == "/p/999900001_full_001.pdf"
+    assert patch.os_copy_original("999900001_full_001 (12).PDF") == "999900001_full_001.PDF"
+    assert patch.os_copy_original("/p/999900001_full_001.pdf") is None
+    assert patch.os_copy_original("/p/scale (short form).pdf") is None
+    assert patch.os_copy_original(None) is None
+
+
+def test_step_duplicate_files():
+    df = pd.DataFrame({
+        "corpus_source": ["apa-psyctests"] * 5,
+        "path": ["/p/999900001_full_001.pdf", "/p/999900001_full_001 (2).pdf",
+                 "/p/999900001_full_001 (2).pdf", "/p/999900002_full_001 (2).pdf", None],
+        "item_item_text": ["a", "a", "b", "only copy", "no path"],
+    })
+    c = ctx()
+    out = patch.step_duplicate_files(df.copy(), c)
+    # the copy goes; a copy whose original is absent stays; null paths stay
+    assert list(out.index) == [0, 3, 4]
+    assert c.stats["duplicate_files"] == {"documents_dropped": 1, "rows_dropped": 2}
+
+
+def test_run_steps_survives_dropped_rows():
+    df = pd.DataFrame({
+        "corpus_source": ["apa-psyctests"] * 3,
+        "path": ["/p/a.pdf", "/p/a (2).pdf", "/p/b.pdf"],
+        "item_item_text": ["fine", "fine", "None"],
+    })
+    out = patch._run_steps(df, ["duplicate_files", "text_repair"], ctx())
+    assert list(out.index) == [0, 2]
+    assert list(out["is_patched"]) == [False, True]
+
+
+def test_step_items_renumbers_ids_restarting_per_subscale():
+    """Scrapers number items per subscale; each distinct item must get its own id."""
+    df = pd.DataFrame({
+        "corpus_source": ["scale-hunt"] * 5 + ["aligns"] * 2 + ["apa-psyctests"],
+        "path": ["wr/a.url"] * 5 + ["al/b.url"] * 2 + ["/p/c.pdf"],
+        "meta_title_raw": ["T"] * 8,
+        "scale_id": [1, 1, 2, 2, 3, 1, 1, 1],
+        "item_item_id": [1, 2, 1, 2, 1, 3, 5, 1],
+        "item_item_text": ["Alpha item", "Beta item", "Gamma item", "Delta item",
+                           "alpha item.",  # same item placed on a third scale
+                           "kept", "ids", "apa"],
+    })
+    c = ctx()
+    out = patch.step_items(df.copy(), c)
+    assert list(out.loc[:4, "item_item_id"]) == [1, 2, 3, 4, 1]
+    assert list(out.loc[5:, "item_item_id"]) == [3, 5, 1]  # no collision: untouched
+    assert c.stats["items.partial_docs_renumbered"] == {
+        "documents": 1, "ids_shared": 2, "items_split_off": 2}
+    assert c.stats["items.id_text_conflicts"] == {"ids": 0, "documents": 0}
+
+
+def test_step_items_guard_warns_on_remaining_conflicts():
+    df = pd.DataFrame({
+        "corpus_source": ["apa-psyctests"] * 3,
+        "path": ["/p/c.pdf"] * 3,
+        "meta_title_raw": ["T"] * 3,
+        "item_item_id": [1, 1, 2],
+        "item_item_text": ["I feel calm", "I feel clam", "Something else entirely"],
+    })
+    c = ctx()
+    patch.step_items(df.copy(), c)  # typo variant: same item, no warning
+    assert c.stats["items.id_text_conflicts"] == {"ids": 0, "documents": 0}
+    df.loc[1, "item_item_text"] = "I often worry about the future"
+    c = ctx()
+    patch.step_items(df.copy(), c)  # apa ids are never renumbered, only reported
+    assert c.stats["items.id_text_conflicts"] == {"ids": 1, "documents": 1}
+    assert any("WARNING" in line for line in c.report)
+
+
+def test_step_text_repair_nulls_sentinel_name_path_elements():
+    df = pd.DataFrame({
+        "corpus_source": ["apa-psyctests"],
+        "scale_name": ["Unknown"],
+        "scale_name_path": [["Real Scale", "Unknown"]],
+    })
+    out = patch.step_text_repair(df.copy(), ctx())
+    assert pd.isna(out.loc[0, "scale_name"])
+    assert list(out.loc[0, "scale_name_path"]) == ["Real Scale", None]
+
+
+def test_step_version_split_keeps_name_path_in_sync():
+    df = pd.DataFrame({
+        "corpus_source": ["aligns", "aligns", "semanticnet", "semanticnet"],
+        "path": ["al/a.url", "al/a.url", "sn/b.url", "sn/b.url"],
+        "meta_title_raw": [None, None, "Coping Scale--Short Form", "Coping Scale--Short Form"],
+        "scale_id": [2, 3, 2, 3],
+        "scale_id_path": [[1, 2], [1, 3], [1, 2], [1, 3]],
+        "scale_name": ["Child--Short Form", "Other Child", "Child A", "Child B"],
+        "scale_name_path": [["Umbrella--Long Form", "Child--Short Form"],
+                            ["Umbrella--Long Form", "Other Child"],
+                            ["Coping Scale--Short Form", "Child A"],
+                            ["Coping Scale--Short Form", "Child B"]],
+        "version": ["scraper note", "scraper note", None, None],
+    })
+    out = patch.step_version_split(df.copy(), ctx())
+    # kept row: name and path agree, qualifier intact
+    assert out.loc[0, "scale_name"] == "Child--Short Form"
+    assert list(out.loc[0, "scale_name_path"]) == ["Umbrella--Long Form", "Child--Short Form"]
+    # umbrella qualifier not recorded in version -> not dropped
+    assert list(out.loc[1, "scale_name_path"]) == ["Umbrella--Long Form", "Other Child"]
+    # umbrella qualifier moved into version for every row under it -> stripped
+    assert out.loc[2, "version"] == "Short Form"
+    assert list(out.loc[2, "scale_name_path"]) == ["Coping Scale", "Child A"]
+    assert list(out.loc[3, "scale_name_path"]) == ["Coping Scale", "Child B"]

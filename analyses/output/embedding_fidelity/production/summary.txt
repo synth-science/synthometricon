@@ -1,0 +1,55 @@
+Model: magnolia-psychometrics/surveybot3000; texts encoded: 1462
+Index: synthometricon-corpus-postprocessed.parquet (the rows the search index pools); fixtures: tests/validation-fixtures; validity run: logs/test-validity-20260815_172054.md
+Excluded: 12 documents whose validity failures were due to errors in the human coding (incl. 022)
+Audited documents in the index: 73 of 100; without fixture errors: 67; of these with validity-run output: 66 (without: ['018'])
+Human-coded scales with item text, documents without fixture errors: 226; in the index: 160 scales in 67 documents; removed in postprocessing: 23 scales in 8 documents; never extracted: 43 scales in 11 documents
+Groups (pass / genuine discrepancy) are the validity-run outcomes of the documents.
+
+[A] INDEX (postprocessed rows), audited documents the index holds
+Human-coded scales with item text: 160 in 67 documents
+(1) COVERAGE: not in the index 1/160 = 0.6% {'items not in index': 1}; documents ['138']; recovered 159/160 = 99.4% [Wilson 95% CI 96.5%, 99.9%]
+(2) AGREEMENT among the 159 recovered scales (counterparts: {'clear (J >= .5)': 145, 'instrument row': 8, 'partial (J < .5)': 6}; 4 machine rows serve >1 human scale):
+    [95% CIs: document-level cluster bootstrap, 1000 resamples of 67 documents, percentile, seed 20261002]
+  all pairs (incl. scale-subscale)                     pairs  12,561 | r = 0.968 [0.927, 0.994] | RMSE = 0.044 [0.019, 0.078] | MAE = 0.018 | max |diff| = 0.714
+  both counterparts clear (J >= .5)                    pairs  10,440 | r = 0.991 [0.979, 0.999] | RMSE = 0.023 [0.010, 0.036] | MAE = 0.010 | max |diff| = 0.250
+  at least one partial / instrument-row counterpart    pairs   2,121 | r = 0.891 [0.844, 0.961] | RMSE = 0.094 [0.040, 0.147] | MAE = 0.057 | max |diff| = 0.714
+  both from documents that passed the validity check   pairs   8,001 | r = 0.969 [0.920, 0.999] | RMSE = 0.043 [0.007, 0.086] | MAE = 0.013 | max |diff| = 0.714
+  at least one from a genuine-discrepancy document     pairs   4,176 | r = 0.963 [0.923, 0.988] | RMSE = 0.047 [0.030, 0.058] | MAE = 0.029 | max |diff| = 0.316
+  search-relevant: |cos_h| >= .30                      pairs   1,354 | r = 0.962 [0.851, 0.997] | RMSE = 0.073 [0.021, 0.145] | MAE = 0.029 | max |diff| = 0.697
+
+[B] INDEX, the same documents minus those without validity-run output
+Human-coded scales with item text: 157 in 66 documents
+(1) COVERAGE: not in the index 1/157 = 0.6% {'items not in index': 1}; documents ['138']; recovered 156/157 = 99.4% [Wilson 95% CI 96.5%, 99.9%]
+(2) AGREEMENT among the 156 recovered scales (counterparts: {'clear (J >= .5)': 142, 'instrument row': 8, 'partial (J < .5)': 6}; 4 machine rows serve >1 human scale):
+    [95% CIs: document-level cluster bootstrap, 1000 resamples of 66 documents, percentile, seed 20261002]
+  all pairs (incl. scale-subscale)                     pairs  12,090 | r = 0.967 [0.932, 0.994] | RMSE = 0.044 [0.020, 0.076] | MAE = 0.018 | max |diff| = 0.714
+  both counterparts clear (J >= .5)                    pairs  10,011 | r = 0.990 [0.978, 0.999] | RMSE = 0.023 [0.009, 0.036] | MAE = 0.010 | max |diff| = 0.250
+  at least one partial / instrument-row counterpart    pairs   2,079 | r = 0.889 [0.840, 0.958] | RMSE = 0.095 [0.041, 0.145] | MAE = 0.058 | max |diff| = 0.714
+  both from documents that passed the validity check   pairs   8,001 | r = 0.969 [0.923, 0.999] | RMSE = 0.043 [0.007, 0.083] | MAE = 0.013 | max |diff| = 0.714
+  at least one from a genuine-discrepancy document     pairs   4,089 | r = 0.963 [0.924, 0.988] | RMSE = 0.047 [0.030, 0.058] | MAE = 0.029 | max |diff| = 0.316
+  search-relevant: |cos_h| >= .30                      pairs   1,351 | r = 0.961 [0.854, 0.997] | RMSE = 0.073 [0.020, 0.144] | MAE = 0.029 | max |diff| = 0.697
+
+[C] VALIDITY RUN, the same documents
+Human-coded scales with item text: 157 in 66 documents
+(1) COVERAGE: not in the index 1/157 = 0.6% {'items not in index': 1}; documents ['138']; recovered 156/157 = 99.4% [Wilson 95% CI 96.5%, 99.9%]
+(2) AGREEMENT among the 156 recovered scales (counterparts: {'clear (J >= .5)': 152, 'partial (J < .5)': 3, 'instrument row': 1}; 2 machine rows serve >1 human scale):
+    [95% CIs: document-level cluster bootstrap, 1000 resamples of 66 documents, percentile, seed 20261002]
+  all pairs (incl. scale-subscale)                     pairs  12,090 | r = 0.987 [0.974, 0.997] | RMSE = 0.026 [0.013, 0.040] | MAE = 0.012 | max |diff| = 0.271
+  both counterparts clear (J >= .5)                    pairs  11,476 | r = 0.988 [0.976, 0.998] | RMSE = 0.026 [0.012, 0.039] | MAE = 0.011 | max |diff| = 0.271
+  at least one partial / instrument-row counterpart    pairs     614 | r = 0.949 [0.926, 0.997] | RMSE = 0.040 [0.012, 0.055] | MAE = 0.027 | max |diff| = 0.200
+  both from documents that passed the validity check   pairs   8,001 | r = 0.998 [0.996, 1.000] | RMSE = 0.012 [0.006, 0.017] | MAE = 0.005 | max |diff| = 0.117
+  at least one from a genuine-discrepancy document     pairs   4,089 | r = 0.966 [0.909, 0.993] | RMSE = 0.043 [0.021, 0.057] | MAE = 0.026 | max |diff| = 0.271
+  search-relevant: |cos_h| >= .30                      pairs   1,353 | r = 0.992 [0.983, 0.999] | RMSE = 0.031 [0.011, 0.055] | MAE = 0.014 | max |diff| = 0.271
+
+[D] PRODUCTION EXTRACTION BEFORE POSTPROCESSING (exploded rows), the same documents
+Human-coded scales with item text: 157 in 66 documents
+(1) COVERAGE: not in the index 1/157 = 0.6% {'items not in index': 1}; documents ['138']; recovered 156/157 = 99.4% [Wilson 95% CI 96.5%, 99.9%]
+(2) AGREEMENT among the 156 recovered scales (counterparts: {'clear (J >= .5)': 142, 'instrument row': 9, 'partial (J < .5)': 5}; 4 machine rows serve >1 human scale):
+    [95% CIs: document-level cluster bootstrap, 1000 resamples of 66 documents, percentile, seed 20261002]
+  all pairs (incl. scale-subscale)                     pairs  12,090 | r = 0.968 [0.932, 0.995] | RMSE = 0.044 [0.018, 0.076] | MAE = 0.018 | max |diff| = 0.714
+  both counterparts clear (J >= .5)                    pairs  10,011 | r = 0.991 [0.978, 0.999] | RMSE = 0.023 [0.009, 0.036] | MAE = 0.010 | max |diff| = 0.250
+  at least one partial / instrument-row counterpart    pairs   2,079 | r = 0.895 [0.846, 0.974] | RMSE = 0.093 [0.031, 0.145] | MAE = 0.055 | max |diff| = 0.714
+  both from documents that passed the validity check   pairs   8,001 | r = 0.969 [0.923, 0.999] | RMSE = 0.043 [0.007, 0.083] | MAE = 0.013 | max |diff| = 0.714
+  at least one from a genuine-discrepancy document     pairs   4,089 | r = 0.965 [0.934, 0.990] | RMSE = 0.045 [0.027, 0.056] | MAE = 0.028 | max |diff| = 0.316
+  search-relevant: |cos_h| >= .30                      pairs   1,351 | r = 0.962 [0.854, 0.998] | RMSE = 0.072 [0.020, 0.144] | MAE = 0.029 | max |diff| = 0.697
+

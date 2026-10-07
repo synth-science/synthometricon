@@ -69,3 +69,52 @@ def test_encode_all_null_skips_model():
 def test_unique_texts():
     s = pd.Series(["b", "a", "b", None, " ", 3])
     assert _unique_texts(s) == ["a", "b"]
+
+
+def test_scale_names_path():
+    from pathlib import Path
+
+    from assemble.encode import scale_names_path
+    assert scale_names_path("/d/corpus-embedded.parquet") == Path("/d/corpus-embedded.scale-names.parquet")
+
+
+def test_path_names_include_parents_and_skip_blanks():
+    from assemble.encode import path_names
+    df = pd.DataFrame({"scale_name_path": [["Domain", "Facet A"], ["Domain", "Facet B"],
+                                           None, ["", None, "  "]]})
+    assert path_names(df) == ["Domain", "Facet A", "Facet B"]
+    assert path_names(pd.DataFrame({"x": [1]})) == []
+
+
+def test_run_encodes_parent_names_once_and_writes_sidecar(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    from assemble.encode import run, scale_names_path
+
+    models: dict[str, StubModel] = {}
+
+    def factory(path):
+        return models.setdefault(path, StubModel())
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers",
+                        types.SimpleNamespace(SentenceTransformer=factory))
+    df = pd.DataFrame({
+        "item_item_text": ["i1", "i2"],
+        "scale_name": ["Facet A", "Facet B"],
+        "scale_name_path": [["Domain", "Facet A"], ["Domain", "Facet B"]],
+        "meta_title_raw": ["Title", "Title"],
+    })
+    inp, out = tmp_path / "post.parquet", tmp_path / "emb.parquet"
+    df.to_parquet(inp)
+    cfg = {"encode": {"item_models": [{"name": "it", "path": "/m/it"}],
+                      "scale_models": [{"name": "sc", "path": "/m/sc"}]}}
+    run(cfg, input_path=inp, output_path=out)
+    emb = pd.read_parquet(out)
+    # Row columns are unchanged: each row's own scale_name.
+    assert [v[0] for v in emb["scale_embedding_sc"]] == [7.0, 7.0]
+    # One call for scale names (rows and parents together), one for titles.
+    assert models["/m/sc"].calls[0] == ["Domain", "Facet A", "Facet B"]
+    side = pd.read_parquet(scale_names_path(out))
+    assert side["scale_name"].tolist() == ["Domain", "Facet A", "Facet B"]
+    assert side.set_index("scale_name").loc["Domain", "scale_embedding_sc"][0] == 6.0

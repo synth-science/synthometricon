@@ -480,7 +480,9 @@ def _match_named_list(
     """Hungarian-match a named-entity list on its key field, then check extras.
 
     Strict entries match locally (below-threshold pairs reported as "matched but failing");
-    ``!anywhere`` entries match against the global pool of ``root_actual``.
+    entries without a key field then take the actual entries left unmatched (best fit on their
+    other fields), so they never displace a keyed match; ``!anywhere`` entries match against the
+    global pool of ``root_actual``.
     """
     threshold = float(thresholds.get("string_similarity", DEFAULT_STRING_SIMILARITY))
 
@@ -506,10 +508,15 @@ def _match_named_list(
         ))
 
     strict: list[tuple[int, Any]] = []
+    keyless: list[tuple[int, Any]] = []
     loose: list[tuple[int, Any]] = []
     for i, entry in enumerate(expected_list):
         if list_is_anywhere or isinstance(entry, AnywhereDict):
             loose.append((i, entry))
+        elif _extract_key(entry, key_field) is None:
+            # No key recorded (e.g. only reverse_coded): a zero-cost wildcard in the keyed
+            # assignment could take a keyed entry's partner, so these match leftovers afterwards.
+            keyless.append((i, entry))
         else:
             strict.append((i, entry))
 
@@ -580,6 +587,43 @@ def _match_named_list(
                 f"{path}[{i}]", "FAIL", f"missing in actual: {key_field}={exp_key!r}",
             ))
 
+    # --- Keyless phase: entries without a key take actual entries left unmatched ---
+    if keyless:
+        free = [j for j in range(m) if j not in consumed_actual]
+
+        def child_of(entry: Any) -> Any:
+            return ({k: v for k, v in entry.items() if k != key_field}
+                    if isinstance(entry, dict) else entry)
+
+        def n_child_issues(entry: Any, j: int) -> int:
+            if not (isinstance(entry, dict) and isinstance(actual_list[j], dict)):
+                return 0
+            probe: list[Issue] = []
+            _validate(child_of(entry), actual_list[j], path, thresholds, probe, [], root_actual)
+            return len(probe)
+
+        paired: dict[int, int] = {}
+        if free:
+            size = max(len(keyless), len(free))
+            cost = np.full((size, size), 1e6, dtype=float)  # dummy pairing = missing
+            for ki, (_, entry) in enumerate(keyless):
+                for fj, j in enumerate(free):
+                    cost[ki, fj] = n_child_issues(entry, j)
+            for ri, cj in zip(*linear_sum_assignment(cost)):
+                if int(ri) < len(keyless) and int(cj) < len(free):
+                    paired[int(ri)] = free[int(cj)]
+        for ki, (i, entry) in enumerate(keyless):
+            child_path = f"{path}[{i}]"
+            if ki not in paired:
+                issues.append(Issue(
+                    child_path, "FAIL", f"missing in actual: {key_field}=None",
+                ))
+                continue
+            j = paired[ki]
+            consumed_actual.add(j)
+            if isinstance(entry, dict) and isinstance(actual_list[j], dict):
+                _validate(child_of(entry), actual_list[j], child_path, thresholds, issues, matches, root_actual)
+
     # --- Loose phase: Hungarian over the global candidate pool -------------
     if loose:
         collector = _CANDIDATE_COLLECTOR_BY_LIST.get(field_name)
@@ -603,6 +647,7 @@ def _match_named_list(
                     cost[li, k] = 1.0 - _similarity(exp_key, act_key)
             row_ind, col_ind = linear_sum_assignment(cost)
             matched_loose: set[int] = set()
+            reported_loose: set[int] = set()
             for ri, cj in zip(row_ind, col_ind):
                 li, k = int(ri), int(cj)
                 if li >= n_loose or k >= c:
@@ -618,6 +663,7 @@ def _match_named_list(
                         child_path, "FAIL",
                         f"missing in actual (anywhere): {key_field}={exp_key!r}",
                     ))
+                    reported_loose.add(li)
                     continue
                 matched_loose.add(li)
                 record(child_path, exp_key, _extract_key(cand, key_field), sim)
@@ -628,10 +674,8 @@ def _match_named_list(
                     child_expected = {kk: v for kk, v in entry.items() if kk != key_field}
                     _validate(child_expected, cand, child_path, thresholds, issues, matches, root_actual)
             for li in range(n_loose):
-                if li not in matched_loose:
-                    # Only flag entries Hungarian never paired; below-threshold already reported.
-                    if any(int(ri) == li for ri in row_ind):
-                        continue
+                # Entries paired with a padding column (more entries than candidates) are missing too.
+                if li not in matched_loose and li not in reported_loose:
                     i, entry = loose[li]
                     exp_key = _extract_key(entry, key_field)
                     issues.append(Issue(

@@ -67,6 +67,7 @@ LLM sampling parameters. Top-level keys are the base; a sub-dict keyed by an ext
 | `data.partials` | Raw exploded parquets from external sources (ALIGNS, Scale-Hunt, SemanticNet), read by combine. |
 | `data.assemble.*` | Per-stage outputs in pipeline order: `exploded`, `combined`, `patched`, `postprocessed`, `embedded`, `pooled` (final assembly output). See [architecture-assemble.md](architecture-assemble.md). |
 | `data.publish` | Encrypted release artifact (Fernet token over parquet bytes, not a readable parquet). Its directory also holds `<artifact>.manifest.json`, `<stem>.key`, `<stem>.md` and `README.md`, all derived from this path (`publish/paths.py`). |
+| `data.reports_dir` | Git-tracked copy of the stats sidecars and the descriptives `<stem>.md`, refreshed on every real write (`assemble.stats.mirror_report`). Relative to the working directory; null disables. The public config sets null and `reports/` is never published. |
 
 ## `encode`
 
@@ -106,6 +107,6 @@ Runs over fewer than `scratch_below_files` PDFs (default 10) are smoke tests: th
 | --- | --- | --- |
 | `num_runs` | `2` | Runs per PDF per extractor in reliability mode. |
 | `run_retries` | `2` | Reliability mode: re-attempts of a whole errored run (timeout, server error, exhausted `max_retries`) before the document fails. |
-| `fixtures_dir` | `tests/fixtures` | Per-document `<stem>.yaml` fixtures. |
+| `fixtures_dir` | `tests/validation-fixtures` | Per-document `<stem>.yaml` fixtures (the human coding the validity evaluation compares against). |
 | `reliability.thresholds.<extractor>.<metric>` | — | See [testing.md](testing.md) and [reliability-metrics.md](reliability-metrics.md). |
 | `validity.thresholds.string_similarity` | — | Levenshtein similarity threshold for the validity comparator. |

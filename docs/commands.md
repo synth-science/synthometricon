@@ -49,7 +49,7 @@ poetry run python -m assemble --report-only              # dry run: report only 
 poetry run python -m assemble --no-logs                  # skip writing logs/assemble-<timestamp>.log
 ```
 
-Real (non-`--report-only`) runs write the combined stage reports to `logs/assemble-<timestamp>.log` unless `--no-logs` is given. Real patch/postprocess runs also write a `<artifact>.stats.json` sidecar (structured per-step counters, see `assemble/stats.py`) next to their output parquet — the `report` stage's source for per-step figures.
+Real (non-`--report-only`) runs write the combined stage reports to `logs/assemble-<timestamp>.log` unless `--no-logs` is given. Real patch/postprocess runs also write a `<artifact>.stats.json` sidecar (structured per-step counters, see `assemble/stats.py`) next to their output parquet — the `report` stage's source for per-step figures. A copy goes to `data.reports_dir` (`reports/`).
 
 The patch, postprocess, encode, and pool stages are also standalone re-runnable on an arbitrary parquet:
 

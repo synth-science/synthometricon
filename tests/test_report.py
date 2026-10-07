@@ -6,7 +6,8 @@ import os
 import pandas as pd
 
 from assemble import report
-from assemble.stats import read_stats, stats_path, stats_stale, write_stats
+from assemble.stats import (mirror_report, read_stats, stats_path, stats_stale,
+                            write_stats)
 
 
 # --- stats sidecar ---
@@ -38,6 +39,15 @@ def test_stats_stale(tmp_path):
     later = artifact.stat().st_mtime + 60
     os.utime(artifact, (later, later))
     assert stats_stale(artifact)
+
+
+def test_mirror_report(tmp_path):
+    src = write_stats(tmp_path / "x.parquet", "patch", {"a": 1})
+    assert mirror_report(src, {}) is None
+    assert mirror_report(src, {"data": {"reports_dir": None}}) is None
+    dest = mirror_report(src, {"data": {"reports_dir": str(tmp_path / "reports")}})
+    assert dest == tmp_path / "reports" / "x.stats.json"
+    assert dest.read_bytes() == src.read_bytes()
 
 
 # --- counting conventions ---
@@ -336,6 +346,24 @@ def test_run_end_to_end(tmp_path):
     assert out.read_text(encoding="utf-8") == "\n".join(lines) + "\n"
 
 
+def test_run_fidelity_reads_checkable_column(tmp_path):
+    # Doc b has a long text layer but prints its items as images; run() must read pdf_text_checkable.
+    embedded = tmp_path / "embedded.parquet"
+    pd.DataFrame({
+        "corpus_source": ["apa", "apa"],
+        "path": ["a.pdf", "b.pdf"],
+        "meta_title_raw": ["T", "T"],
+        "item_item_id": [1, 1],
+        "pdf_match_edit_distance_norm": [0.0, 0.9],
+        "pdf_text_chars": [5000, 400],
+        "pdf_text_checkable": pd.array([True, False], dtype="boolean"),
+    }).to_parquet(embedded)
+    cfg = {"data": {"assemble": {"embedded": str(embedded)}}}
+    text = "\n".join(report.run(cfg))
+    assert "| items — checkable (usable text layer) | 1 |" in text
+    assert "| ≥ 1 checkable item below 95% | 0 | 1 |" in text
+
+
 # --- appendix ---
 
 def test_appendix_is_static_and_covers_key_columns():
@@ -377,9 +405,14 @@ def test_fidelity_lines_units_and_threshold_counts():
     text = "\n".join(report._fidelity_lines(df, df["path"]))
     assert "similarity = 1 − normalized distance" in text
     assert "| items — all measured | 4 |" in text  # placements de-duplicated
-    assert "| items — checkable (text layer ≥ 200 chars) | 3 |" in text
+    assert "| items — checkable (usable text layer) | 3 |" in text
     assert "| items — checkable, English originals only | 2 |" in text
     assert "| placements — all measured (stored grain, reference) | 5 |" in text
     # "≥ 1 item below" counts a and b; a's mean is taken over items, not placements
     assert "| ≥ 1 checkable item below 95% | 2 | 2 | 100.0% |" in text
     assert "| mean item similarity below 95% (all measured) | 2 | 3 |" in text
+    # items printed as images: pdf_match marks doc b not checkable despite its long text layer
+    df["pdf_text_checkable"] = pd.array([True, True, True, False, False], dtype="boolean")
+    text = "\n".join(report._fidelity_lines(df, df["path"]))
+    assert "| items — checkable (usable text layer) | 2 |" in text
+    assert "| ≥ 1 checkable item below 95% | 1 | 1 | 100.0% |" in text

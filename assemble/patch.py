@@ -1,7 +1,8 @@
 """Patch stage: value-level repair and backfill of the combined corpus.
 
-Never drops rows; DOI backfill is fill-only-null. Steps run in ``STEPS`` order;
-per-step semantics in docs/assemble-patch.md.
+Drops rows only for OS duplicate copies of a source file (``duplicate_files``);
+DOI backfill is fill-only-null. Steps run in ``STEPS`` order; per-step semantics
+in docs/assemble-patch.md.
 
 Usage:
     python -m assemble --step patch [--report-only] [--refresh]
@@ -31,7 +32,7 @@ from extraction.storage import PATH_COL
 from extraction.text_utils import fuzzy_contains, extract_json
 
 from .combine import write_parquet
-from .stats import write_stats
+from .stats import mirror_report, write_stats
 
 try:
     from langdetect import DetectorFactory, detect as _langdetect
@@ -120,16 +121,35 @@ _PSYCTESTS_DOI_RE = re.compile(
     re.IGNORECASE,
 )
 _PSYCTESTS_RECORD_RE = re.compile(r"^10\.1037/t\d{4,6}-\d{3}$")
-_ANY_DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s\"'<>]+)")
+# Printable ASCII except quotes and angle brackets: keeps legacy DOIs with ``&`` or ``[...]``
+# (``10.1207/s15327752jpa5401&2_19``) while non-ASCII text-layer debris (``©``) ends the DOI.
+_ANY_DOI_RE = re.compile(r"\b(10\.\d{4,9}/[!#-&(-;=?-~]+)")
+# PDF text layers write the DOI hyphen as U+2010 and friends, and may keep soft hyphens from line breaks.
+_DOI_HYPHENS = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-",
+                              "\u2212": "-", "\u00ad": None})
+# Landing-page path segments a DOI taken from a URL drags along (frontiersin ``/full``, ``/abstract``, ...).
+_DOI_URL_TAIL_RE = re.compile(
+    r"/(?:full|abstract|pdf|epdf|pdfdirect|fulltext|html|summary)$", re.IGNORECASE)
 _STEM_ID_RE = re.compile(r"^9999(\d{5})")
 
 
 def _clean_doi(raw: str) -> str:
-    return raw.rstrip(".,;:)]}\"'").lower()
+    """Strip trailing punctuation, unbalanced closing brackets and landing-page tails; lower-case."""
+    doi = raw
+    while True:
+        prev = doi
+        doi = doi.rstrip(".,;:")
+        for opening, closing in ("()", "[]", "{}"):
+            if doi.endswith(closing) and doi.count(closing) > doi.count(opening):
+                doi = doi[:-1]
+        doi = _DOI_URL_TAIL_RE.sub("", doi)
+        if doi == prev:
+            return doi.lower()
 
 
 def page1_dois(text: str) -> tuple[Optional[str], Optional[str]]:
     """(PsycTESTS record DOI, source-publication DOI) from page-1 text."""
+    text = text.translate(_DOI_HYPHENS)
     m = _PSYCTESTS_DOI_RE.search(text)
     record = m.group(1).lower() if m else None
     source = None
@@ -153,7 +173,7 @@ def doi_in_text(text) -> Optional[str]:
     """First non-PsycTESTS DOI inside free text (e.g. an APA citation)."""
     if not isinstance(text, str):
         return None
-    for cand in _ANY_DOI_RE.findall(text):
+    for cand in _ANY_DOI_RE.findall(text.translate(_DOI_HYPHENS)):
         doi = _clean_doi(cand)
         if not _PSYCTESTS_RECORD_RE.match(doi):
             return doi
@@ -760,6 +780,41 @@ def title_case_name(text):
 # Steps
 # ---------------------------------------------------------------------------
 
+# ``name (2).pdf``: the copy macOS/Windows make when a file is duplicated in place.
+_OS_COPY_RE = re.compile(r"^(?P<base>.+) \((?P<n>\d+)\)(?P<ext>\.[A-Za-z0-9]+)$")
+
+
+def os_copy_original(path) -> Optional[str]:
+    """``…/name (2).pdf`` -> ``…/name.pdf`` (the file the copy was made from), else None."""
+    if not isinstance(path, str):
+        return None
+    head, sep, name = path.rpartition("/")
+    m = _OS_COPY_RE.match(name)
+    return f"{head}{sep}{m['base']}{m['ext']}" if m else None
+
+
+def step_duplicate_files(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
+    """Drop documents that are OS duplicate copies of a source file also in the corpus.
+
+    The only step that drops rows. A copy whose original is absent is kept (it is the only extraction).
+    """
+    if PATH_COL not in df.columns:
+        return df
+    paths = df[PATH_COL]
+    present = set(paths.dropna().unique())
+    copies = {p: o for p in present
+              if (o := os_copy_original(p)) is not None and o in present}
+    drop = paths.isin(list(copies)).fillna(False).astype(bool)
+    for copy in sorted(copies):
+        ctx.log(f"duplicate_files: {Path(copy).name} is a copy of "
+                f"{Path(copies[copy]).name} — {int(paths.eq(copy).sum())} rows dropped")
+    ctx.log(f"duplicate_files: {len(copies)} OS duplicate copies dropped "
+            f"({int(drop.sum())} rows)")
+    ctx.stat("duplicate_files", {"documents_dropped": len(copies),
+                                 "rows_dropped": int(drop.sum())})
+    return df.loc[~drop]
+
+
 _INT_COLS = [
     "item_item_id", "meta_publication_year_raw", "scale_id", "scale_depth",
     "meta_page_count", "meta_image_count", "meta_char_count_excl_first_page",
@@ -827,6 +882,13 @@ def step_text_repair(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
             df.loc[mask, col] = None
             ctx.log(f"text_repair: {col}: {int(mask.sum())} sentinel cells -> null")
             ctx.stat(f"text_repair.sentinel_cells_nulled.{col}", int(mask.sum()))
+    if NAME_PATH_COL in df.columns:  # same rule as scale_name, element-wise
+        _as_object(df, NAME_PATH_COL)
+        n = int(_map_name_path(
+            df, lambda x: None if x.strip() in _SENTINELS or not x.strip() else x).sum())
+        if n:
+            ctx.log(f"text_repair: {NAME_PATH_COL}: {n} rows had sentinel elements -> null")
+        ctx.stat(f"text_repair.sentinel_cells_nulled.{NAME_PATH_COL}", n)
 
     if "version_attached" in df.columns:
         mask = df["version_attached"].eq("none")
@@ -1578,8 +1640,80 @@ def step_item_type(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
     return df
 
 
+# Two texts under one item id count as the same item at this rapidfuzz ratio (typos, punctuation variants).
+_SAME_ITEM_RATIO = 90
+
+
+def _item_text_key(value) -> Optional[str]:
+    """Case- and punctuation-insensitive item text; None when there is no text."""
+    if not isinstance(value, str):
+        return None
+    key = " ".join(re.sub(r"[^\w]+", " ", value.casefold()).split())
+    return key or None
+
+
+def _text_clusters(texts: list) -> dict:
+    """Map each normalized text to the index of its cluster (greedy, ``_SAME_ITEM_RATIO``)."""
+    from rapidfuzz import fuzz
+
+    reps: list[str] = []
+    out: dict = {}
+    for t in texts:
+        if t in out:
+            continue
+        for i, rep in enumerate(reps):
+            if t == rep or fuzz.ratio(t, rep) >= _SAME_ITEM_RATIO:
+                out[t] = i
+                break
+        else:
+            out[t] = len(reps)
+            reps.append(t)
+    return out
+
+
+def _id_text_conflicts(ids: pd.Series, texts: pd.Series, keys: pd.Series) -> pd.DataFrame:
+    """(document, item id) pairs that carry more than one distinct item (by ``_text_clusters``)."""
+    frame = pd.DataFrame({"doc": keys, "id": ids, "text": texts.map(_item_text_key)})
+    frame = frame[frame["id"].notna() & frame["text"].notna()]
+    n = frame.groupby(["doc", "id"])["text"].nunique()
+    candidates = n[n > 1].index
+    rows = []
+    for (doc, item_id), grp in frame.set_index(["doc", "id"]).loc[candidates].groupby(level=[0, 1]):
+        clusters = _text_clusters(list(dict.fromkeys(grp["text"])))
+        if len(set(clusters.values())) > 1:
+            rows.append((doc, item_id, len(set(clusters.values()))))
+    return pd.DataFrame(rows, columns=["doc", "id", "items"])
+
+
+def _renumber_colliding_ids(df: pd.DataFrame, mask: pd.Series, keys: pd.Series,
+                            conflicts: pd.DataFrame) -> int:
+    """Give every distinct item of an affected document its own id; return the documents renumbered.
+
+    Scrapers that number items per subscale reuse ids for different items. Within an affected document,
+    an item is (original id, text cluster); ids are reassigned 1..K in order of first appearance, so a
+    multi-scale item (same id, same text) keeps one id across its placements. Rows without text keep the
+    first item of their original id.
+    """
+    docs = set(conflicts["doc"])
+    rows = df.index[mask & df["item_item_id"].notna() & keys.isin(docs)]
+    for doc, idx in pd.Series(rows, index=rows).groupby(keys[rows]):
+        ids = df.loc[idx, "item_item_id"]
+        texts = df.loc[idx, "item_item_text"].map(_item_text_key)
+        cluster: dict = {}
+        for item_id in ids.unique():
+            on_id = texts[ids.eq(item_id)].dropna()
+            cluster[item_id] = _text_clusters(list(dict.fromkeys(on_id)))
+        new_ids: dict = {}
+        for i in idx:
+            item_id, text = ids.at[i], texts.at[i]
+            item = (item_id, cluster[item_id].get(text, 0) if isinstance(text, str) else 0)
+            new_ids.setdefault(item, len(new_ids) + 1)
+            df.at[i, "item_item_id"] = new_ids[item]
+    return len(docs)
+
+
 def step_items(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
-    """Item-level normalizations."""
+    """Item-level normalizations; afterwards each (document, item id) names one item."""
     pm = partial_mask(df)
     if "item_options" in df.columns:
         empty = df["item_options"].map(_is_empty_sequence)
@@ -1588,16 +1722,6 @@ def step_items(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
             df.loc[empty, "item_options"] = None
         ctx.log(f"items: {int(empty.sum())} empty option lists -> null")
         ctx.stat("items.empty_option_lists_nulled", int(empty.sum()))
-
-    if "item_item_id" in df.columns:
-        keys = _doc_keys(df)
-        sub = df.loc[pm & df["item_item_id"].notna()]
-        mins = sub["item_item_id"].groupby(keys[sub.index]).transform("min")
-        shift = sub.index[mins.eq(0)]
-        df.loc[shift, "item_item_id"] = df.loc[shift, "item_item_id"] + 1
-        docs = keys[shift].nunique() if len(shift) else 0
-        ctx.log(f"items: {docs} partial documents shifted 0-based -> 1-based ids")
-        ctx.stat("items.docs_shifted_to_1_based", int(docs))
 
     if "item_item_text" in df.columns:
         texts = df.loc[pm, "item_item_text"]
@@ -1611,6 +1735,37 @@ def step_items(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
         ctx.log(f"items: {int(changed.sum())} partial item texts had numbering "
                 "prefixes stripped")
         ctx.stat("items.numbering_prefixes_stripped", int(changed.sum()))
+
+    if "item_item_id" in df.columns:
+        keys = _doc_keys(df)
+        sub = df.loc[pm & df["item_item_id"].notna()]
+        mins = sub["item_item_id"].groupby(keys[sub.index]).transform("min")
+        shift = sub.index[mins.eq(0)]
+        df.loc[shift, "item_item_id"] = df.loc[shift, "item_item_id"] + 1
+        docs = keys[shift].nunique() if len(shift) else 0
+        ctx.log(f"items: {docs} partial documents shifted 0-based -> 1-based ids")
+        ctx.stat("items.docs_shifted_to_1_based", int(docs))
+
+        if "item_item_text" in df.columns:
+            texts = df["item_item_text"]
+            partial = _id_text_conflicts(df.loc[pm, "item_item_id"],
+                                         texts[pm], keys[pm])
+            renumbered = (_renumber_colliding_ids(df, pm, keys, partial)
+                          if len(partial) else 0)
+            split = int((partial["items"] - 1).sum()) if len(partial) else 0
+            ctx.log(f"items: {renumbered} partial documents renumbered — "
+                    f"{len(partial)} ids carried {split} further distinct items "
+                    "(numbering restarted per subscale)")
+            ctx.stat("items.partial_docs_renumbered",
+                     {"documents": renumbered, "ids_shared": len(partial),
+                      "items_split_off": split})
+            left = _id_text_conflicts(df["item_item_id"], texts, keys)
+            if len(left):
+                ctx.log(f"items: WARNING {len(left)} (document, item id) pairs in "
+                        f"{left['doc'].nunique()} documents still carry more "
+                        "than one item text — counts and pooling merge them")
+            ctx.stat("items.id_text_conflicts",
+                     {"ids": len(left), "documents": int(left["doc"].nunique())})
     return df
 
 
@@ -1678,6 +1833,67 @@ def _map_name_path(df: pd.DataFrame, fn) -> pd.Series:
     return changed
 
 
+SCALE_ID_PATH_COL = "scale_id_path"
+
+
+def _sync_name_path(df: pd.DataFrame) -> int:
+    """Rebuild ``scale_name_path`` after the version split; return the rows changed.
+
+    An element whose node has rows of its own takes that node's ``scale_name`` (as split or kept,
+    or nulled as a sentinel), so path and row names never diverge. An element of a node without own
+    rows (an umbrella scale) loses its qualifier only when every row under it records the qualifier in
+    ``version``; otherwise it stays intact, so the qualifier is never dropped silently. Without
+    ``scale_id_path`` every element is split as before.
+    """
+    if SCALE_ID_PATH_COL not in df.columns or "scale_id" not in df.columns:
+        return int(_map_name_path(df, lambda x: split_version_qualifier(x)[0]).sum())
+    seq = (list, tuple, np.ndarray)
+    keys = _doc_keys(df).tolist()
+    id_paths = df[SCALE_ID_PATH_COL].tolist()
+    name_paths = df[NAME_PATH_COL].tolist()
+    names = df["scale_name"].tolist() if "scale_name" in df.columns else [None] * len(df)
+    versions = (df[VERSION_COL].tolist() if VERSION_COL in df.columns
+                else [None] * len(df))
+
+    node_name: dict = {}
+    for key, sid, name in zip(keys, df["scale_id"].tolist(), names):
+        if not pd.isna(sid):
+            node_name.setdefault((key, sid), name)
+
+    # umbrella nodes: strip the qualifier only if no row under the node would lose it
+    strip_ok: dict = {}
+    for key, ids, path, version in zip(keys, id_paths, name_paths, versions):
+        if not (isinstance(ids, seq) and isinstance(path, seq)) or len(ids) != len(path):
+            continue
+        for sid, x in zip(ids, path):
+            if (key, sid) in node_name or not isinstance(x, str):
+                continue
+            qual = split_version_qualifier(x)[1]
+            if qual is None:
+                continue
+            kept = isinstance(version, str) and qual.casefold() in version.casefold()
+            strip_ok[(key, sid)] = strip_ok.get((key, sid), True) and kept
+
+    out, changed = [], []
+    for key, ids, path in zip(keys, id_paths, name_paths):
+        if not (isinstance(ids, seq) and isinstance(path, seq)) or len(ids) != len(path):
+            out.append(path)
+            changed.append(False)
+            continue
+        new = []
+        for sid, x in zip(ids, path):
+            if (key, sid) in node_name:
+                new.append(node_name[(key, sid)])
+            elif isinstance(x, str) and strip_ok.get((key, sid), False):
+                new.append(split_version_qualifier(x)[0])
+            else:
+                new.append(x)
+        out.append(new)
+        changed.append(not _cell_eq(path, new))
+    df[NAME_PATH_COL] = pd.Series(out, index=df.index, dtype=object)
+    return int(sum(changed))
+
+
 def step_version_split(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
     """Move trailing version qualifiers from name columns into ``version`` (fill-only-null)."""
     present = [c for c in _NAME_VERSION_COLS if c in df.columns]
@@ -1724,8 +1940,7 @@ def step_version_split(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
 
     path_changed = 0
     if NAME_PATH_COL in df.columns:
-        path_changed = int(_map_name_path(
-            df, lambda x: split_version_qualifier(x)[0]).sum())
+        path_changed = _sync_name_path(df)
 
     uniq_hits = sum(1 for b, q in splits.values() if q is not None)
     ctx.stat("version_split", {"unique_names_with_qualifier": uniq_hits,
@@ -1820,6 +2035,7 @@ def step_anomalies(df: pd.DataFrame, ctx: Ctx) -> pd.DataFrame:
 
 Step = Callable[[pd.DataFrame, Ctx], pd.DataFrame]
 STEPS: dict[str, Step] = {  # insertion order = execution order
+    "duplicate_files": step_duplicate_files,
     "schema": step_schema,
     "text_repair": step_text_repair,
     "meta_dois": step_meta_dois,
@@ -1842,7 +2058,7 @@ STEPS: dict[str, Step] = {  # insertion order = execution order
 }
 # Report labeling only — enforcement lives inside each step via the masks.
 STEP_SCOPE: dict[str, str] = {
-    "schema": "all", "text_repair": "all", "meta_dois": "apa",
+    "duplicate_files": "all", "schema": "all", "text_repair": "all", "meta_dois": "apa",
     "pdf_full_text": "apa", "doi_psyctests": "all", "source_fields": "partials", "source_doi": "all",
     "crossref": "all", "doi_probe": "partials", "language": "all",
     "permissions": "partials+all", "fabricated": "partials",
@@ -1899,6 +2115,7 @@ def _run_steps(df: pd.DataFrame, selected: list[str], ctx: Ctx) -> pd.DataFrame:
             continue
         ctx.log(f"--- {name} [{STEP_SCOPE[name]}] ---")
         df = STEPS[name](df, ctx)
+    before = before.loc[df.index]  # duplicate_files may drop rows; nothing else does
     changed = _changed_mask(before, df)
     prior = (before[PATCHED_COL].fillna(False).astype(bool)
              if PATCHED_COL in before.columns
@@ -1955,7 +2172,7 @@ def run(cfg: dict, *, report_only: bool = False, refresh: bool = False,
     if not report_only:
         write_parquet(df, out)
         ctx.log(f"wrote {out}")
-        write_stats(out, "patch", ctx.stats, ctx.report)
+        mirror_report(write_stats(out, "patch", ctx.stats, ctx.report), cfg)
     return ctx.report
 
 

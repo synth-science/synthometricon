@@ -8,13 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from extraction.config import load_test_cases
+from extraction.config import load_config, load_test_cases, resolve_fixtures_dir
 from extraction.extractors import REGISTRY
 from extraction.orchestrator import run_validity
 
 
+ROOT = Path(__file__).parent.parent
 TEST_FILES_YAML = Path(__file__).parent / "test_files.yaml"
-_TEST_CASES = load_test_cases(str(TEST_FILES_YAML))
+# Same fixtures as the CLI (config.yaml testing.fixtures_dir: the human coding).
+FIXTURES_DIR = resolve_fixtures_dir(load_config(str(ROOT / "config.yaml")), ROOT)
+_TEST_CASES = load_test_cases(str(TEST_FILES_YAML), fixtures_dir=FIXTURES_DIR)
 
 _VALIDITY_PARAMS = [
     pytest.param(Path(case["path"]).stem, id=Path(case["path"]).stem)

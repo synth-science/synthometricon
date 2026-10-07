@@ -353,3 +353,74 @@ def test_missing_carried_column_is_a_hard_error(tmp_path):
     df.to_parquet(inp)
     with pytest.raises(SystemExit, match="flag_item_translated"):
         run({}, input_path=inp, output_path=out)
+
+
+# --- run: parent-only nodes get their own name (scale-name sidecar from encode) ---
+
+def _hierarchy(tmp_path, *, sidecar=True, depth3=False):
+    """Instrument -> domain (no direct items) -> two facets; one-hot name vectors."""
+    from assemble.encode import scale_names_path
+    from assemble.pool import run
+
+    e = np.eye(5, dtype=F32)  # e[0] facet A, e[1] facet B, e[2] domain, e[3] title, e[4] total
+    paths = [[1, 2], [1, 3]] if not depth3 else [[9, 1, 2], [9, 1, 3]]
+    names = [["Domain", "Facet A"], ["Domain", "Facet B"]]
+    if depth3:
+        names = [["Total", *n] for n in names]
+    df = pd.DataFrame({
+        "path": ["a.pdf"] * 2,
+        "bucket": ["scaled"] * 2,
+        "scale_id_path": paths,
+        "scale_name_path": names,
+        "item_item_id": [1, 2],
+        "item_reverse_coded": [False, False],
+        "corpus_source": ["t"] * 2,
+        "public_doi": [None] * 2,
+        "doi_psyctests": [None] * 2,
+        "meta_title_raw": ["Title A"] * 2,
+        **carried(2),
+        "scale_embedding_m1": [e[0], e[1]],
+        "instrument_embedding_m1": [e[3], e[3]],
+    })
+    inp, out = tmp_path / "in.parquet", tmp_path / "out.parquet"
+    df.to_parquet(inp)
+    if sidecar:
+        pd.DataFrame({"scale_name": ["Domain", "Facet A", "Facet B", "Total"],
+                      "scale_embedding_m1": [e[2], e[0], e[1], e[4]]}
+                     ).to_parquet(scale_names_path(inp))
+    report = run({}, input_path=inp, output_path=out)
+    return pd.read_parquet(out), report, e
+
+
+def test_parent_only_node_gets_own_name_embedding_and_label(tmp_path):
+    pooled, _, e = _hierarchy(tmp_path)
+    scale = pooled[~pooled["is_instrument"]].set_index("scale_id")
+    inst = pooled[pooled["is_instrument"]].iloc[0]
+    # The domain has no direct rows, but now carries its own name vector ...
+    assert np.allclose(scale.loc[1, "scale_embedding_m1"], e[2])
+    # ... and its label vector averages its own name, both facets and the title.
+    assert np.allclose(scale.loc[1, "scale_pooled_m1"], (e[0] + e[1] + e[2] + e[3]) / 4)
+    # Leaves are unchanged: own name and title.
+    assert np.allclose(scale.loc[2, "scale_embedding_m1"], e[0])
+    assert np.allclose(scale.loc[2, "scale_pooled_m1"], (e[0] + e[3]) / 2)
+    assert np.allclose(scale.loc[3, "scale_pooled_m1"], (e[1] + e[3]) / 2)
+    # The instrument row is unchanged: the item-bearing scales' names and the title.
+    assert np.allclose(inst["scale_pooled_m1"], (e[0] + e[1] + e[3]) / 3)
+    assert inst["scale_embedding_m1"] is None
+
+
+def test_intermediate_node_names_enter_ancestor_labels(tmp_path):
+    pooled, _, e = _hierarchy(tmp_path, depth3=True)
+    scale = pooled[~pooled["is_instrument"]].set_index("scale_id")
+    # Total (9) -> Domain (1) -> facets: the top node includes the intermediate domain's name.
+    assert np.allclose(scale.loc[9, "scale_embedding_m1"], e[4])
+    assert np.allclose(scale.loc[9, "scale_pooled_m1"], (e[0] + e[1] + e[2] + e[3] + e[4]) / 5)
+    assert np.allclose(scale.loc[1, "scale_pooled_m1"], (e[0] + e[1] + e[2] + e[3]) / 4)
+
+
+def test_without_sidecar_parent_nodes_fall_back_and_warn(tmp_path):
+    pooled, report, e = _hierarchy(tmp_path, sidecar=False)
+    scale = pooled[~pooled["is_instrument"]].set_index("scale_id")
+    assert scale.loc[1, "scale_embedding_m1"] is None
+    assert np.allclose(scale.loc[1, "scale_pooled_m1"], (e[0] + e[1] + e[3]) / 3)
+    assert any(line.startswith("WARNING: no scale-name sidecar") for line in report)

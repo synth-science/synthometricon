@@ -102,8 +102,9 @@ pal_all <- readRDS("data/palette.rds")
 pal_all <- rep(pal_all, length.out = nrow(tests) + 1)
 pal_all <- if_else(c(FALSE, covered), pal_all, "#EEE")
 
-cat(sprintf("pooled coverage: %d/%d records (%.1f%%), %.1f%% of usage\n",
-            sum(covered), length(covered), 100 * mean(covered),
+used <- tests$n > 0  # zero-area tiles: 26 DOIs have rows with only NA usage
+cat(sprintf("pooled coverage: %d/%d records with usage (%.1f%%), %.1f%% of usage\n",
+            sum(covered & used), sum(used), 100 * mean(covered[used]),
             100 * sum(tests$n[covered]) / sum(tests$n)))
 
 p_all <- treemap_graph(tests, colors = pal_all)

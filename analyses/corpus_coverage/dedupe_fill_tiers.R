@@ -11,10 +11,11 @@ source("paths.R")
 # Rule: two records are duplicates when the Jaccard similarity of their
 # normalised item texts is >= 0.8. Containment alone (short form inside its
 # long form, PHQ-9 inside PHQ) does NOT count: short forms are distinct
-# instruments and stay. Within each duplicate group, SynthNet records are
-# always kept (Björn's corpus is not ours to filter); among fill records the
-# one with the most items is kept, ties broken by tier (hunt > semanticnet >
-# aligns). Dropped records are logged to
+# instruments and stay. SynthNet records are always kept (Björn's corpus is not
+# ours to filter). Fill records are visited by item count (ties by tier: hunt >
+# semanticnet > aligns) and dropped only when they are a direct duplicate
+# (J >= 0.8) of a record already kept; a record linked to the corpus only
+# through another dropped record is kept. Dropped records are logged to
 # data/processed/fill_tier_dedupe_aliases.csv (dropped DOI -> kept DOI), which
 # scale_hunt_treemap.R reads so aliased DOIs still count as covered — their
 # content is in the corpus under the kept record.
@@ -53,47 +54,34 @@ pairs <- all_items %>%
   mutate(J = shared / (nx + ny - shared)) %>%
   filter(J >= J_THRESHOLD)
 
-# connected components over duplicate edges
+# Greedy over every record that has a duplicate edge: SynthNet records first (always kept),
+# then fill records by item count and tier. A fill record is dropped only if it has a DIRECT
+# duplicate edge (J >= .8) to a record already kept, and is aliased to the most similar such
+# record. Records linked only through a chain of dropped records (A ~ B ~ SynthNet with
+# J(A, SynthNet) < .8) are therefore kept, and no two kept fill records are duplicates.
 key <- function(t, d) str_c(t, "|", d)
-nodes <- unique(c(key(pairs$tier.x, pairs$DOI.x), key(pairs$tier.y, pairs$DOI.y)))
-comp <- setNames(seq_along(nodes), nodes)
-repeat {
-  changed <- FALSE
-  for (i in seq_len(nrow(pairs))) {
-    a <- key(pairs$tier.x[i], pairs$DOI.x[i]); b <- key(pairs$tier.y[i], pairs$DOI.y[i])
-    m <- min(comp[a], comp[b])
-    if (comp[a] != m || comp[b] != m) { comp[a] <- m; comp[b] <- m; changed <- TRUE }
-  }
-  if (!changed) break
-}
+edges <- bind_rows(
+  pairs %>% transmute(a = key(tier.x, DOI.x), b = key(tier.y, DOI.y), J),
+  pairs %>% transmute(a = key(tier.y, DOI.y), b = key(tier.x, DOI.x), J))
+groups <- tibble(node = unique(edges$a)) %>%
+  tidyr::separate(node, c("tier", "DOI"), sep = "\\|", remove = FALSE) %>%
+  left_join(sizes, by = c("tier", "DOI")) %>%
+  arrange(TIER_RANK[tier] != 0, desc(n), TIER_RANK[tier])
 
-groups <- tibble(node = names(comp), comp = comp) %>%
-  tidyr::separate(node, c("tier", "DOI"), sep = "\\|") %>%
-  left_join(sizes, by = c("tier", "DOI"))
-
-drops <- groups %>% group_by(comp) %>%
-  arrange(TIER_RANK[tier] != 0, desc(n), TIER_RANK[tier], .by_group = TRUE) %>%
-  mutate(keep = row_number() == 1 | tier == "synthnet") %>% ungroup() %>%
-  filter(!keep)
-
-# alias each dropped record to its most-similar kept groupmate; when its direct
-# duplicate edges all point to other dropped records (chains), fall back to the
-# largest kept record in its component
-kept <- groups %>% anti_join(drops, by = c("tier", "DOI"))
-alias <- drops %>% rowwise() %>% mutate(best = {
-  cand <- pairs %>%
-    filter((tier.x == tier & DOI.x == DOI & key(tier.y, DOI.y) %in% key(kept$tier, kept$DOI)) |
-             (tier.y == tier & DOI.y == DOI & key(tier.x, DOI.x) %in% key(kept$tier, kept$DOI))) %>%
-    arrange(desc(J)) %>% slice_head(n = 1)
-  if (nrow(cand) > 0) {
-    if (cand$tier.x == tier && cand$DOI.x == DOI) key(cand$tier.y, cand$DOI.y)
-    else key(cand$tier.x, cand$DOI.x)
+kept_keys <- character(0)
+alias <- list()
+for (i in seq_len(nrow(groups))) {
+  g <- groups[i, ]
+  if (g$tier == "synthnet") { kept_keys <- c(kept_keys, g$node); next }
+  dup <- edges %>% filter(a == g$node, b %in% kept_keys) %>% arrange(desc(J)) %>% slice_head(n = 1)
+  if (nrow(dup)) {
+    alias[[length(alias) + 1]] <- tibble(tier = g$tier, DOI = g$DOI, n = g$n, best = dup$b, J = dup$J)
   } else {
-    cc <- comp
-    fb <- kept %>% filter(.data$comp == cc) %>% arrange(desc(n)) %>% slice_head(n = 1)
-    if (nrow(fb)) key(fb$tier, fb$DOI) else NA_character_
+    kept_keys <- c(kept_keys, g$node)
   }
-}) %>% ungroup() %>%
+}
+alias <- bind_rows(alias, tibble(tier = character(), DOI = character(), n = integer(),
+                                 best = character(), J = double())) %>%
   tidyr::separate(best, c("kept_tier", "kept_DOI"), sep = "\\|")
 
 psyc <- readRDS(PSYC_RECORDS) %>% select(DOI, Name)
@@ -101,7 +89,7 @@ alias_out <- alias %>%
   left_join(psyc, by = "DOI") %>% rename(dropped_name = Name) %>%
   left_join(psyc, by = c("kept_DOI" = "DOI")) %>% rename(kept_name = Name) %>%
   select(dropped_tier = tier, dropped_DOI = DOI, dropped_name, n_items = n,
-         kept_tier, kept_DOI, kept_name)
+         kept_tier, kept_DOI, kept_name, J)
 write.csv(alias_out, "data/processed/fill_tier_dedupe_aliases.csv", row.names = FALSE)
 
 for (t in names(FILL_FILES)) {

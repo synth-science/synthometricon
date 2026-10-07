@@ -34,7 +34,8 @@ doi_from_path <- function(path) {
 # as in coverage_by_source.R of the corpus coverage pipeline
 records <- readRDS(PSYC_RECORDS)
 usage <- readRDS(PSYC_INFO) %>%
-  group_by(DOI) %>% summarise(usage_count = sum(usage_count, na.rm = TRUE), .groups = "drop")
+  group_by(DOI) %>% summarise(usage_count = sum(usage_count, na.rm = TRUE), .groups = "drop") %>%
+  filter(usage_count > 0)  # 26 DOIs have rows with only NA usage
 n_records <- n_distinct(records$DOI)
 n_used <- nrow(usage)
 total_usage <- sum(usage$usage_count)
@@ -149,6 +150,8 @@ n_ok <- sum(check$rank == 1)
 n_review <- sum(check$rank == 2)
 n_scan <- sum(check$rank == 3)
 n_extracted <- n_ok + n_review + n_scan
+# items whose text, options and notes are all too short (<= 12 normalised characters) to locate
+n_short <- if ("checkable" %in% names(check)) sum(check$items - check$checkable, na.rm = TRUE) else 0
 
 hunt_items <- hunt %>% distinct(path, item_item_id, item_reverse_coded)
 n_reverse <- sum(hunt_items$item_reverse_coded %in% TRUE)
@@ -170,10 +173,12 @@ first pass used Claude Haiku 4.5, the second Claude Sonnet 5 (both Anthropic). A
 original publication, known hosting sites, version pitfalls). The agents ran as multi-agent workflows
 in Claude Code; in total, at least `r n_agents` agents were run.
 
-A script then compared every extracted item with the text of the saved source after normalising case,
-punctuation and whitespace. Of the `r n_extracted` records with extracted items, it found at least
-90% of the items in the source for `r n_ok`. For `r n_review` it found fewer, partly because it also
-compared the agents' administration notes, which often contained commentary absent from the source.
+A script then compared the extracted items with the text of the saved source after normalising case,
+punctuation and whitespace; `r n_short` items too short to locate reliably (e.g., single adjectives)
+were not checked. Of the `r n_targets_covered` records with extracted items, `r n_extracted` went
+through this check. It found at least 90% of the checkable items in the source for `r n_ok`. For
+`r n_review` it found fewer, partly because it also compared the agents' administration notes, which
+often contained commentary absent from the source.
 For `r n_scan` records the saved source was a scan without a text layer; two of these (the Conflict
 Tactics Scales and the State-Trait Anxiety Inventory for Children) we checked by eye against the page
 images.
@@ -192,14 +197,21 @@ redistributed; the published dataset contains only the pooled scale vectors.
 ```{r semnet}
 ssn_items <- nrow(read.csv(p("semanticnet", "items_clean.csv")))
 ssn_scales <- read_csv(p("semanticnet", "scale_matches.csv"), show_col_types = FALSE)
+ssn_manual <- nrow(read_csv(p("processed", "semanticnet_scale_exclusions.csv"), show_col_types = FALSE))
 ```
 
 The Semantic Scale Network (Rosenbusch et al., 2020) is an online tool that detects semantic overlap
 between psychological scales. Hannes Rosenbusch provided the underlying item database:
 `r fmt(ssn_items)` items from `r fmt(nrow(ssn_scales))` scales. Of the `r fmt(nrow(ssn_scales))` scales, `r sum(ssn_scales$match_type != "none")`
-could be matched to a PsycTests record by name. We accepted a match only if the name was distinctive
-(at least three words, at least 20 characters, or contained in the PsycTests title) and the number of
-items was within 25% of the item count listed in PsycTests. This added `r cov_added$semnet["n"]`
+could be matched to a PsycTests record by name. We did not match scales whose name does not identify
+a published instrument: facet scales from the IPIP proxy keys of other inventories (e.g., "insight")
+and modules of survey archives (ARDA, the LISS panel). A match had to be distinctive (a name of at
+least three words or 20 characters, or one that equals the PsycTests name apart from generic words
+such as "scale" and numbers), and the number of items had to be within 25% of the item count listed
+in PsycTests. Each scale went to its best match among all such records, the most used one. If that
+record was a translation or already covered by an earlier source, the scale added nothing rather than
+going to a lesser match. On review, `r ssn_manual` scales matched a different instrument of the same
+name; we excluded them by hand. This added `r cov_added$semnet["n"]`
 records, `r instruments(semnet)` after removing duplicates, with `r fmt(items(semnet))` items. The
 database records neither subscales, response options nor reverse keying.
 
@@ -215,8 +227,9 @@ measures repository, the Stress Measurement Network and PROMIS. We separated for
 generic item sets and merged versions of the same instrument, which left `r fmt(nrow(larsen))` items
 from `r n_distinct(larsen$meta_instrument_name)` instruments. These were matched to PsycTests records
 by exact name or by the core of the name (at least two words), again requiring the number of items to
-be within 25% of the PsycTests record. Version labels in parentheses were not used for matching, and
-two matches that passed both checks paired the wrong versions, so we removed them by hand. This added `r cov_added$aligns["n"]` records,
+be within 25% of the PsycTests record, and each went to its most used match, as above. Version labels
+in parentheses were not used for matching, and five matches that passed these checks paired the wrong
+versions, so we removed them by hand. This added `r cov_added$aligns["n"]` records,
 `r instruments(aligns)` instruments with `r fmt(items(aligns))` items after removing duplicates. Like
 the Semantic Scale Network, the corpus records no reverse keying or response options.
 
@@ -230,7 +243,7 @@ n_dropped <- function(tier) dropped$n[dropped$dropped_tier == tier]
 PsycTests holds separate records for translated versions of an instrument ("... –Chinese version").
 Because matching relied on names, English items could have been assigned to a translation record when
 the English original was already covered. The two name-matched sources therefore never filled records
-whose names mark a translation.
+whose names mark a translation, and an instrument whose best match was a translation added nothing.
 
 Several added instruments turned out to duplicate one already in the corpus under a different record,
 typically because the extractions had taken the English items from a study validating a translation

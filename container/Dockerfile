@@ -5,7 +5,9 @@
 # Stage 1: build llama-server with CUDA.
 FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS llama-build
 
-ARG LLAMA_CPP_REF=master
+# Commit, tag or branch. 1acee6b is the build that produced the corpus (`llama-server --version`
+# in the cluster image printed "version: 1 (1acee6b)").
+ARG LLAMA_CPP_REF=1acee6b
 # V100 = SM 70; e.g. "70;75;80" for several.
 ARG CUDA_ARCHITECTURES=70
 
@@ -16,8 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
-RUN git clone --depth 1 --branch "${LLAMA_CPP_REF}" \
-        https://github.com/ggml-org/llama.cpp.git
+# Blob-less clone + checkout: works for commit hashes (which `--branch` rejects) as well as tags/branches.
+RUN git clone --filter=blob:none https://github.com/ggml-org/llama.cpp.git \
+    && git -C llama.cpp checkout --quiet "${LLAMA_CPP_REF}" \
+    && echo "llama.cpp at $(git -C llama.cpp rev-parse HEAD)"
 
 WORKDIR /opt/llama.cpp
 # Link against the CUDA driver stub (libcuda.so.1 symlink); the real driver is

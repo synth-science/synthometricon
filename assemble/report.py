@@ -698,7 +698,8 @@ def _fidelity_lines(df: pd.DataFrame, keys: pd.Series) -> list[str]:
     """
     from importlib.metadata import PackageNotFoundError, version
 
-    from .postprocess import PDF_MATCH_NORM_MAX, PDF_TEXT_CHARS_MIN
+    from .postprocess import (PDF_MATCH_NORM_MAX, PDF_TEXT_CHARS_MIN,
+                              PDF_TEXT_CHARS_PER_PAGE_MIN)
 
     try:
         rf_version = version("rapidfuzz")
@@ -716,6 +717,9 @@ def _fidelity_lines(df: pd.DataFrame, keys: pd.Series) -> list[str]:
              if "pdf_text_chars" in df.columns
              else pd.Series(float("nan"), index=df.index))
     f["thin"] = chars.lt(PDF_TEXT_CHARS_MIN)
+    if "pdf_text_checkable" in df.columns:  # also items printed as images
+        f["thin"] |= (df["pdf_text_checkable"].astype("boolean").eq(False)
+                      .fillna(False).astype(bool))
     f["translated"] = (df["flag_item_translated"].astype("boolean")
                        .fillna(False).astype(bool)
                        if "flag_item_translated" in df.columns else False)
@@ -757,9 +761,12 @@ def _fidelity_lines(df: pd.DataFrame, keys: pd.Series) -> list[str]:
         f"≤ {PDF_MATCH_NORM_MAX}; `flag_item_text_deviation` marks the "
         "rest). *Exclusions:* non-APA (partial) sources have no PDF and are "
         "not measured; PDFs whose text layer (pages 2..n) is shorter than "
-        f"{PDF_TEXT_CHARS_MIN} characters are treated as *not checkable* "
-        "(no real text layer — the distance would reflect the missing text, "
-        "not the item); items whose original language is not English "
+        f"{PDF_TEXT_CHARS_MIN} characters, or that print their items as "
+        "images (at least one image per body page beyond the per-page "
+        f"PsycTESTS logo and fewer than {PDF_TEXT_CHARS_PER_PAGE_MIN} "
+        "characters per body page), are treated as *not checkable* "
+        "(no usable text layer — the distance would reflect the missing "
+        "text, not the item; `pdf_text_checkable`); items whose original language is not English "
         "(`flag_item_translated`) are published as English translations and "
         "therefore cannot match the original-language PDF, so they are "
         "shown both included and excluded.",
@@ -771,9 +778,8 @@ def _fidelity_lines(df: pd.DataFrame, keys: pd.Series) -> list[str]:
     ]
     rows = [
         _fidelity_row("items — all measured", items["sim"], threshold),
-        _fidelity_row(f"items — checkable (text layer ≥ "
-                      f"{PDF_TEXT_CHARS_MIN} chars)", checkable["sim"],
-                      threshold),
+        _fidelity_row("items — checkable (usable text layer)",
+                      checkable["sim"], threshold),
         _fidelity_row("items — checkable, English originals only",
                       original["sim"], threshold),
         _fidelity_row("instruments — mean item similarity, all measured",
@@ -832,7 +838,7 @@ def _fidelity_lines(df: pd.DataFrame, keys: pd.Series) -> list[str]:
           _pct(n_any / n_chk) if n_chk else "n/a"],
          [f"≥ 1 checkable English-original item below {thr}", n_any_en,
           n_chk_en, _pct(n_any_en / n_chk_en) if n_chk_en else "n/a"],
-         [f"≥ 1 measured item below {thr} (thin text layers included)",
+         [f"≥ 1 measured item below {thr} (unusable text layers included)",
           n_any_all, n_meas, _pct(n_any_all / n_meas) if n_meas else "n/a"],
          [f"mean item similarity below {thr} (all measured)", n_mean_below,
           n_meas, _pct(n_mean_below / n_meas) if n_meas else "n/a"]])
@@ -840,7 +846,7 @@ def _fidelity_lines(df: pd.DataFrame, keys: pd.Series) -> list[str]:
     lines.append(
         f"Denominators: {n_meas:,} instruments have ≥ 1 measured item, "
         f"{n_chk:,} ≥ 1 checkable item ({n_thin_docs:,} measured instruments "
-        f"have a text layer under {PDF_TEXT_CHARS_MIN} characters); the "
+        f"have no usable text layer); the "
         f"final dataset holds {n_docs_total:,} instruments in total. Measured "
         f"items: {len(items):,} distinct ({len(measured):,} placements); "
         f"checkable: {len(checkable):,}; of those English originals: "
@@ -903,7 +909,7 @@ def section_extras(cfg: dict) -> Section:
                 "item_text_chars", "item_item_type", "item_options",
                 "item_reverse_coded", "meta_language", "permissions_category",
                 "pdf_match_edit_distance_norm", "pdf_text_chars",
-                "flag_item_count_deviation", "flag_scale_count_deviation",
+                "pdf_text_checkable", "flag_item_count_deviation", "flag_scale_count_deviation",
                 "flag_item_text_deviation", "flag_item_translated",
                 "record_item_count"]
         df = _read(embedded, cols)
@@ -1102,6 +1108,10 @@ def section_appendix(cfg: dict) -> Section:
         ("pdf_text_chars", "Length of the PDF's text layer; below the "
                            "thin-text threshold the match distance reflects "
                            "the missing layer, not the item."),
+        ("pdf_text_checkable",
+         "Whether the PDF's text layer can show the items: False when it is "
+         "under the thin-text threshold or the items are printed as images "
+         "(image-heavy pages with little text); NA where no PDF exists."),
         ("record_item_count / record_scale_count",
          "Item/scale counts from the PsycTESTS record, kept as references "
          "for the deviation flags."),
@@ -1114,7 +1124,7 @@ def section_appendix(cfg: dict) -> Section:
         ("flag_item_text_deviation",
          "Item is not a near-verbatim match of the PDF body "
          "(`pdf_match_edit_distance_norm` above threshold); NA when not "
-         "measurable (no PDF, or thin text layer)."),
+         "measurable (no PDF, or `pdf_text_checkable` is False)."),
         ("flag_item_translated",
          "Item's original language (`item_language`) is not English, so the "
          "published text is a translation; NA when no language is known."),

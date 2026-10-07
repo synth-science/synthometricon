@@ -31,9 +31,12 @@ source("lang_exclude.R")
 
 v <- read.csv("data/semanticnet/psyc_name_variants.csv") %>%
   mutate(nvar = norm(variant), cvar = core(variant))
-flags <- read.csv("data/semanticnet/psyc_coverage_flags.csv")
-# covered_hunt in the flags file goes stale whenever a hunt batch lands;
-# read the hunt parquet directly instead
+# coverage of the earlier tiers, read live: the extraction (bucket "scaled"), the hunt and the
+# SemanticNet parquets
+synthnet_dois <- open_dataset("data/raw-extractions-exploded.parquet") %>%
+  filter(bucket == "scaled") %>% distinct(path) %>% collect() %>%
+  mutate(DOI = str_c("10.1037/t", str_sub(str_extract(path, "[0-9]{9}"), 5, 9), "-000")) %>%
+  pull(DOI) %>% unique()
 hunt_dois <- read_parquet("data/restricted/scale-hunt-extractions-exploded.parquet") %>%
   distinct(path) %>%
   mutate(DOI = str_c("10.1037/t", str_sub(str_extract(path, "[0-9]{9}"), 5, 9), "-000")) %>%
@@ -56,41 +59,45 @@ cand <- bind_rows(
                relationship = "many-to-many") %>% mutate(mtype = "core")
 ) %>%
   distinct(meta_instrument_name, n_items, DOI, mtype) %>%
-  left_join(flags, by = "DOI") %>% left_join(meta, by = "DOI") %>%
+  left_join(read.csv("data/semanticnet/psyc_coverage_flags.csv") %>% select(DOI, in_targets156), by = "DOI") %>%
+  left_join(meta, by = "DOI") %>%
   left_join(usage, by = "DOI") %>%
   mutate(usage_count = coalesce(usage_count, 0),
+         covered_synthnet = DOI %in% synthnet_dois,
          covered = covered_synthnet | DOI %in% hunt_dois | DOI %in% semnet_dois,
          count_ok = is.na(expected) | (abs(n_items - expected) / pmax(expected, 1)) <= 0.25) %>%
-  # aligns items are English (zero non-ASCII in the corpus): never file them
-  # under a translation record
-  filter(!is_language_variant(Name), count_ok)
+  filter(count_ok)
 
 # manual review exclusions: version mis-assignments that pass the count gate
-# (12-item GHQ under the GHQ-28 record; adult STAI state form under STAI-for-Children)
-BAD_DOI <- c("10.1037/t16058-000", "10.1037/t06497-000")
+# (12-item GHQ under the GHQ-28 record; adult STAI state form under STAI-for-Children;
+# HoNOS under HoNOS for people with learning disabilities; Ryff's scales under a modified
+# 15-item version; the 6-item RSE under a modified 5-item version)
+BAD_DOI <- c("10.1037/t16058-000", "10.1037/t06497-000", "10.1037/t66797-000", "10.1037/t53541-000",
+             "10.1037/t59866-000")
 
-# full gated match set, regardless of coverage by other tiers (for
-# coverage_by_source.R, which reports overlapping coverage per source)
-cand %>%
+# Each instrument goes to its best-matching record among ALL compatible records: the most used
+# one (ties: exact name match, closest item count, DOI); one instrument per record (most items).
+# Usage, not exact-before-core, decides: variant names make translation records "exact" matches
+# (OASIS matches only the Spanish and Japanese versions exactly, the OASIS record itself by core). If that record is a translation (aligns items are
+# English, zero non-ASCII in the corpus) or already covered by an earlier tier, the instrument
+# fills nothing: it must not fall through to a lesser, uncovered match (e.g. the SWLS items onto
+# the unrelated "satisfaction with life questionnaire").
+best <- cand %>%
   filter(!DOI %in% BAD_DOI) %>%
   group_by(meta_instrument_name) %>%
-  filter(mtype == ifelse(any(mtype == "exact"), "exact", "core")) %>%
-  slice_max(usage_count, n = 1, with_ties = FALSE) %>% ungroup() %>%
-  group_by(DOI) %>% slice_max(n_items, n = 1, with_ties = FALSE) %>% ungroup() %>%
+  arrange(desc(usage_count), mtype != "exact", abs(n_items - expected), DOI, .by_group = TRUE) %>%
+  slice_head(n = 1) %>% ungroup() %>%
+  filter(!is_language_variant(Name)) %>%
+  group_by(DOI) %>% slice_max(n_items, n = 1, with_ties = FALSE) %>% ungroup()
+
+# full matched set, regardless of coverage by other tiers (for coverage_by_source.R, which
+# reports overlapping coverage per source)
+best %>%
   transmute(DOI, Name, meta_instrument_name, n_items, usage_count, mtype,
             covered_synthnet, covered_hunt = DOI %in% hunt_dois, covered_semnet = DOI %in% semnet_dois) %>%
   write.csv("data/processed/aligns_matches_all.csv", row.names = FALSE)
 
-cand <- cand %>% filter(!covered)
-
-# exact matches beat core matches; then one best DOI per instrument (highest usage),
-# one instrument per DOI (most items)
-fills <- cand %>%
-  filter(!DOI %in% BAD_DOI) %>%
-  group_by(meta_instrument_name) %>%
-  filter(mtype == ifelse(any(mtype == "exact"), "exact", "core")) %>%
-  slice_max(usage_count, n = 1, with_ties = FALSE) %>% ungroup() %>%
-  group_by(DOI) %>% slice_max(n_items, n = 1, with_ties = FALSE) %>% ungroup()
+fills <- best %>% filter(!covered)
 
 rows <- fills %>%
   mutate(accession = str_c("9999", str_match(DOI, "10[.]1037/t([0-9]{5})-000")[, 2]),

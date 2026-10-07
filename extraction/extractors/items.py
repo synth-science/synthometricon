@@ -225,8 +225,9 @@ class ItemExtractor(Extractor):
             icc = pg.intraclass_corr(
                 data=df, targets="target", raters="rater", ratings="rating"
             )
-            row = icc[icc["Type"] == "ICC(A,1)"].iloc[0]
-            ci_lo, ci_hi = row["CI95%"]
+            # Labels differ across pingouin versions ("ICC(A,1)"/"ICC2"; "CI95%"/"CI95").
+            row = icc[icc["Type"].isin(["ICC(A,1)", "ICC2"])].iloc[0]
+            ci_lo, ci_hi = row["CI95%"] if "CI95%" in row.index else row["CI95"]
             return (
                 f"  ICC(2,1) on item counts: {float(row['ICC']):.4f}"
                 f"  (95% CI [{ci_lo:.4f}, {ci_hi:.4f}])"

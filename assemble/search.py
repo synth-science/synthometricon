@@ -68,8 +68,12 @@ def pool_query(vectors: np.ndarray, reverse=None) -> np.ndarray:
 
 
 def _rank(df: pd.DataFrame, column: str, query_vec: np.ndarray,
-          top_k: int) -> pd.DataFrame:
-    """Top-``top_k`` rows by cosine similarity of ``column`` to ``query_vec``; null cells skipped."""
+          top_k: int, absolute: bool = False) -> pd.DataFrame:
+    """Top-``top_k`` rows by cosine similarity of ``column`` to ``query_vec``; null cells skipped.
+
+    ``absolute`` ranks by |cosine| (strongly negatively related scales rank as high as positively
+    related ones); the ``similarity`` column always keeps the signed value.
+    """
     if column not in df.columns:
         raise ValueError(f"column {column} not in the pooled frame — was the "
                          "pool stage run with this model configured?")
@@ -84,17 +88,20 @@ def _rank(df: pd.DataFrame, column: str, query_vec: np.ndarray,
     cols = [c for c in RESULT_COLS if c in df.columns]
     result = df.loc[valid, cols].copy()
     result.insert(0, "similarity", sims)
-    return (result.sort_values("similarity", ascending=False)
-            .head(top_k).reset_index(drop=True))
+    order = np.argsort(-(np.abs(sims) if absolute else sims), kind="stable")
+    return result.iloc[order[:top_k]].reset_index(drop=True)
 
 
 def search_items(query, *, reverse=None, model_index: int = 0,
                  top_k: int = 10, data: pd.DataFrame | None = None,
-                 config_path="config.yaml") -> pd.DataFrame:
+                 config_path="config.yaml", absolute: bool = True) -> pd.DataFrame:
     """Rank pooled rows by similarity to ``item_pooled_{model}``.
 
     A list ``query`` is pooled into one vector; ``reverse`` marks its reverse-keyed entries.
-    Results mix scale and instrument rows (filter on ``is_instrument``).
+    Results mix scale and instrument rows (filter on ``is_instrument``). Ranked by absolute
+    cosine by default, as in the paper: SurveyBot3000 cosines approximate signed correlations,
+    so a strongly negatively related scale is as relevant as a positively related one. The
+    ``similarity`` column keeps the sign; pass ``absolute=False`` for signed ranking.
     """
     texts = [query] if isinstance(query, str) else list(query)
     if isinstance(query, str) and reverse is not None:
@@ -106,7 +113,7 @@ def search_items(query, *, reverse=None, model_index: int = 0,
                      convert_to_numpy=True), dtype=np.float32)
     query_vec = pool_query(vectors, reverse)
     return _rank(_load_pooled(cfg, data), f"item_pooled_{name}",
-                 query_vec, top_k)
+                 query_vec, top_k, absolute=absolute)
 
 
 def search_scales(query, *, model_index: int = 0, top_k: int = 10,

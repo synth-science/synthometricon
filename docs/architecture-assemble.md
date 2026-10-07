@@ -27,7 +27,7 @@ Encrypting and releasing `pooled` is the separate `publish/` pipeline ([architec
 
 ## patch
 
-Value-level repair and backfill; never drops rows, DOI backfill is fill-only-null; sets `is_patched`; carries apa PDF body text in `pdf_full_text` for postprocess. Details: [assemble-patch.md](assemble-patch.md).
+Value-level repair and backfill; drops rows only for OS duplicate copies of a PDF (`duplicate_files`), DOI backfill is fill-only-null; sets `is_patched`; carries apa PDF body text in `pdf_full_text` for postprocess. Details: [assemble-patch.md](assemble-patch.md).
 
 ## postprocess
 
@@ -35,10 +35,10 @@ First stage allowed to drop rows: filters to publishable single rating-scale ite
 
 ## encode, pool
 
-Row-preserving embedding columns (encode), then per-scale/per-instrument pooling with keyed centroids (pool). See [assemble-encode-pool.md](assemble-encode-pool.md) and [reverse-keyed-pooling.md](reverse-keyed-pooling.md).
+Row-preserving embedding columns (encode, which also writes a `<embedded>.scale-names.parquet` sidecar with the name embeddings of parent-only scale nodes), then per-scale/per-instrument pooling with keyed centroids (pool; run encode first so the sidecar exists). See [assemble-encode-pool.md](assemble-encode-pool.md) and [reverse-keyed-pooling.md](reverse-keyed-pooling.md).
 
 ## Supporting modules
 
-- **`stats.py`** — `write_stats` dumps a stage's `Ctx.stats` + report lines to `<artifact>.stats.json` (real runs of patch/postprocess only, overwritten each run; history is in `logs/`); `read_stats` returns None on missing/corrupt; `stats_stale` flags a sidecar older than its parquet.
+- **`stats.py`** — `write_stats` dumps a stage's `Ctx.stats` + report lines to `<artifact>.stats.json` (real runs of patch/postprocess only, overwritten each run; history is in `logs/`); `read_stats` returns None on missing/corrupt; `stats_stale` flags a sidecar older than its parquet; `mirror_report` copies a sidecar or report into `data.reports_dir`.
 - **`report.py`** — paper-facing descriptives report; not a stage, written by publish beside the release. See [assemble-report.md](assemble-report.md).
-- **`search.py`** — import-only helpers (`search_items`, `search_scales`) for sanity-checking embedding search against the pooled corpus; not a stage. Scripts outside the repo root need `PYTHONPATH=<repo>` (the repo is not installed as a package).
+- **`search.py`** — import-only helpers (`search_items`, `search_scales`) for sanity-checking embedding search against the pooled corpus; not a stage. `search_items` ranks by absolute cosine by default, as the paper describes (SurveyBot3000 cosines approximate signed correlations, so strongly negatively related scales are hits too); the `similarity` column keeps the sign, and `absolute=False` ranks by signed cosine. `search_scales` (label search) ranks by signed cosine. Scripts outside the repo root need `PYTHONPATH=<repo>` (the repo is not installed as a package).

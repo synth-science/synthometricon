@@ -18,11 +18,10 @@ from .orchestrator import (
     run_status,
     run_validity,
 )
-from .config import load_config, load_test_cases
+from .config import DEFAULT_FIXTURES_DIR, load_config, load_test_cases
 
 
 TEST_FILES_YAML = Path("tests/test_files.yaml")
-DEFAULT_FIXTURES_DIR = "tests/fixtures"
 
 
 def main() -> None:

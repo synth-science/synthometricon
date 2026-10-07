@@ -8,6 +8,13 @@ suppressMessages({
   library(jsonlite); library(arrow)
 })
 
+# Results whose recorded target is not the PsycTests record they belong to (e.g. a salvaged
+# result that kept the source article's DOI); corrected here so the record gets its path/DOI.
+TARGET_FIXES <- local({
+  f <- read.csv("data/processed/scale_hunt_target_fixes.csv", stringsAsFactors = FALSE)
+  setNames(f$psyctests_doi, f$recorded_target)
+})
+
 assemble_scale_hunt <- function(workflow_json, out_parquet,
                                 template_parquet = "data/raw-extractions-exploded.parquet") {
   template_schema <- arrow::open_dataset(template_parquet)$schema
@@ -24,6 +31,7 @@ assemble_scale_hunt <- function(workflow_json, out_parquet,
   rows <- purrr::map_dfr(res, function(r) {
     e <- r$extraction
     doi <- r$target
+    if (!is.null(doi) && doi %in% names(TARGET_FIXES)) doi <- unname(TARGET_FIXES[doi])
     meta <- psyc %>% filter(DOI == doi) %>% slice(1)
     accession <- str_c("9999", str_match(doi, "10\\.1037/t(\\d{5})-000")[, 2])
     slug <- str_replace_all(tolower(coalesce(meta$psyc_name[1], e$name, "scale")), "[^a-z0-9]+", "-")

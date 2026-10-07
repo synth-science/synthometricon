@@ -516,6 +516,20 @@ def _success_updates(
     return updates
 
 
+def _is_server_unreachable(exc: BaseException) -> bool:
+    """True when the inference server is down or unreachable, i.e. not a failure of the document.
+
+    Timeouts are excluded (``APITimeoutError`` subclasses ``APIConnectionError``): a request that
+    runs past the timeout on a long document is that document's failure.
+    """
+    import httpx
+    import openai
+
+    if isinstance(exc, openai.APITimeoutError):
+        return False
+    return isinstance(exc, (openai.APIConnectionError, httpx.ConnectError, ConnectionError))
+
+
 def _failure_updates(
     name: str, exc: Exception, timestamp: str, attempts: int
 ) -> dict[str, object]:
@@ -624,8 +638,11 @@ def run_live(
 
     t_total_start = time.perf_counter()
     doc_results: list[dict] = []
+    aborted = False  # server unreachable: stop instead of failing the rest of the worklist
 
     for file_idx, pdf_path in enumerate(pdf_paths):
+        if aborted:
+            break
         t_doc_start = time.perf_counter()
         _print_and_log_doc_header(file_idx, len(pdf_paths), pdf_path, out.log)
 
@@ -720,6 +737,13 @@ def run_live(
                     ext, images, config, context, out.log
                 )
             except Exception as exc:
+                if _is_server_unreachable(exc):
+                    # Infrastructure, not this document: record nothing, keep the attempt count.
+                    out.write(f"  [ABORT] {ext.name}: inference server unreachable "
+                              f"({type(exc).__name__}: {exc}); not recorded as a "
+                              "document failure. Stopping the run.")
+                    aborted = True
+                    break
                 out.write(f"  [FAIL] {ext.name}: {exc}")
                 updates.update(_failure_updates(ext.name, exc, start_ts, attempts))
                 failed.append(ext.name)
@@ -761,6 +785,12 @@ def run_live(
         f"{n_skipped_exhausted} skipped (max-attempts), "
         f"{total_elapsed:.2f}s total."
     )
+    if aborted:
+        out.write(
+            f"ABORTED: inference server unreachable after {len(doc_results)} of "
+            f"{len(pdf_paths)} doc(s); the remaining documents were not attempted. "
+            "Restart the server and rerun."
+        )
 
     if not no_logs:
         log_path = write_run_log(
@@ -768,7 +798,8 @@ def run_live(
         )
         print(f"[log written to {log_path}]")
 
-    return {"doc_results": doc_results, "all_passed": n_failed == 0}
+    return {"doc_results": doc_results, "all_passed": n_failed == 0 and not aborted,
+            "aborted": aborted}
 
 
 def run_status(
