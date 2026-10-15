@@ -6,6 +6,8 @@ This repository contains the data extraction pipeline (which extracts structured
 
 The web app is currently hosted on Hugging Face Spaces at: [https://huggingface.co/spaces/magnolia-psychometrics/synthometricon](https://huggingface.co/spaces/magnolia-psychometrics/synthometricon)
 
+[![Synthometricon demo](assets/synthometricon-demo-short.gif)](assets/synthometricon-demo-short.mp4)
+
 ## What is (not) included
 
 This is a read-only snapshot of the pipeline code. Source PDFs, extraction outputs, test fixtures and evaluation logs are not included because they contain copyright-protected material. The published dataset is encrypted; see [`publish/dataset_card.md`](publish/dataset_card.md) for how to request access.
